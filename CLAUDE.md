@@ -8,8 +8,8 @@ BSS Magic Runtime is a telecommunications middleware system that exposes CloudSe
 
 - **BSS Magic Runtime**: PostgreSQL + Foreign Data Wrapper (FDW) + TMF API Server that translates CloudSense objects to TMF standards
 - **TypeScript Dashboard**: Next.js application for monitoring services, products, and data quality issues
-- **1147-Gateway**: FastAPI service for automated remediation of CloudSense migration issues via Apex scripts
-- **CloudSense JS Gateway**: FastAPI + Playwright service for CloudSense browser automation (OE updates)
+- **Batch Orchestrator**: Unified FastAPI service for manual and scheduled remediation (replaces legacy 1147-gateway)
+- **CloudSense JS Gateway**: FastAPI + Playwright service for CloudSense browser automation (optional fallback)
 
 **Deployment**: AWS ECS Fargate (Singapore region) with Application Load Balancer
 
@@ -28,13 +28,13 @@ npm run lint             # Biome linting
 npm run format           # Auto-format code
 ```
 
-### 1147-Gateway (Remediation Service)
+### Batch Orchestrator (Unified Remediation Service)
 ```bash
-cd 1147-gateway
-./setup.sh               # Interactive credential setup
+cd batch-orchestrator
 pip install -r requirements.txt
-python -m app.main       # Start on port 8081
-# Swagger docs: http://localhost:8081/docs
+python -m app.main       # Start on port 8082
+# Swagger docs: http://localhost:8082/docs
+# Key endpoint: POST /remediate/{solution_id}
 ```
 
 ### CloudSense JS Gateway
@@ -94,8 +94,8 @@ cd aws-deployment
 User/Browser → TypeScript Dashboard (3000)
               ↓
               ├→ BSS Magic Runtime (AWS ALB) → PostgreSQL + FDW → Salesforce (SOQL)
-              ├→ 1147-Gateway (8081) → Salesforce Tooling API (Apex execution)
-              └→ JS Gateway (8080) → Playwright → CloudSense JS APIs
+              ├→ Batch Orchestrator (8082) → TMF API → REST FDW → Salesforce
+              └→ JS Gateway (8080) → Playwright → CloudSense JS APIs (optional fallback)
 ```
 
 ### Foreign Data Wrapper (FDW) Pattern

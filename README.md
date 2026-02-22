@@ -13,9 +13,9 @@ BSS Magic Runtime translates CloudSense business objects into TM Forum (TMF) sta
 ## System Components
 
 - **Runtime**: PostgreSQL + TMF Server + Salesforce FDW (AWS ECS)
-- **Batch Orchestrator**: Autonomous batch remediation service (Python FastAPI)
+- **Batch Orchestrator**: Unified remediation service for manual and scheduled operations (Python FastAPI)
 - **Dashboard**: Next.js monitoring UI (React + TanStack Query)
-- **Gateways**: Remediation services (Apex executor + browser automation)
+- **CloudSense JS Gateway**: Browser automation for CloudSense operations (optional)
 
 ## Quick Start
 
@@ -48,9 +48,9 @@ Before starting services, configure environment variables:
 cp dashboard/.env.example dashboard/.env.local
 # Edit dashboard/.env.local with your TMF API URL and settings
 
-# 1147-Gateway
-cp gateways/1147-gateway/.env.example gateways/1147-gateway/.env
-# Edit gateways/1147-gateway/.env with Salesforce credentials
+# Batch Orchestrator
+cp batch-orchestrator/.env.example batch-orchestrator/.env
+# Edit with TMF API URL and orchestrator settings
 
 # CloudSense JS Gateway (optional)
 cp gateways/cloudsense-js-gateway/.env.example gateways/cloudsense-js-gateway/.env
@@ -77,12 +77,11 @@ cp gateways/cloudsense-js-gateway/.env.example gateways/cloudsense-js-gateway/.e
    npm run dev  # http://localhost:3000
    ```
 
-3. **Start Gateways**
+3. **Start Batch Orchestrator**
    ```bash
-   # 1147-Gateway (Apex remediation)
-   cd gateways/1147-gateway
-   ./setup.sh
-   python -m app.main  # http://localhost:8081
+   # Batch Orchestrator (autonomous remediation)
+   cd batch-orchestrator
+   python -m app.main  # http://localhost:8082
    ```
 
 ### AWS Deployment
@@ -128,11 +127,12 @@ SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are 
 ## Architecture
 
 ```
-User → Dashboard (3000) → TMF Runtime (ALB) → PostgreSQL + FDW → Salesforce
-                ↓
-        1147-Gateway (8081) → Apex Scripts → Salesforce Tooling API
-                ↓
-    Batch Orchestrator (8082) → TMF Runtime → Scheduled Remediation
+User → Dashboard (3000) → Batch Orchestrator (8082) → TMF Runtime (ALB)
+                                    ↓                         ↓
+                              Unified Remediation      PostgreSQL + FDW
+                              (Manual & Scheduled)           ↓
+                                    ↓                    Salesforce
+                              TMF API REST FDW
 ```
 
 ## Contributing

@@ -18,13 +18,10 @@ This repository contains **only production-ready code** extracted from the devel
 - Schedule-based OE execution
 - TMF API client integration
 
-#### 3. **Gateways** (`gateways/`)
-- **1147-Gateway**: Apex-based solution remediation (70 files)
-  - FastAPI service with 29+ endpoints
-  - Apex script executor
-  - Solution attachment patching
-- **CloudSense JS Gateway**: Playwright browser automation
-  - OE attribute patching via CloudSense UI
+#### 3. **CloudSense JS Gateway** (`gateways/cloudsense-js-gateway/`)
+- Playwright browser automation (optional fallback)
+- OE attribute patching via CloudSense UI
+- Used when TMF API REST FDW is unavailable
 
 #### 4. **Dashboard** (`dashboard/`)
 - Next.js 15 monitoring UI
@@ -97,8 +94,8 @@ git push -u origin main
 # Dashboard
 cd dashboard && npm install && npm run dev
 
-# 1147 Gateway
-cd gateways/1147-gateway && ./setup.sh && python -m app.main
+# Batch Orchestrator
+cd batch-orchestrator && python -m app.main
 
 # Batch Orchestrator
 cd batch-orchestrator && python -m app.main
