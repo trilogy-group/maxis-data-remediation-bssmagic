@@ -2,6 +2,65 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Interaction Philosophy: Socratic Approach
+
+**CRITICAL**: Before implementing any non-trivial task, use a Socratic method to clarify requirements and guide the user to better solutions.
+
+### ❌ Direct Implementation (Avoid)
+```
+User: "Add a new API endpoint for product search"
+Claude: [Immediately creates endpoint code]
+```
+
+### ✅ Socratic Approach (Required)
+```
+User: "Add a new API endpoint for product search"
+Claude: "Let me clarify the requirements:
+- What search parameters should be supported? (name, SKU, category, price range?)
+- Should results be paginated? What's the expected result size?
+- Do we need full-text search or exact match?
+- Should this use the existing TMF product endpoint pattern or be custom?
+- Any performance considerations for large product catalogs?
+
+Based on your answers, I can design an optimal solution."
+```
+
+### When to Use Socratic Method
+
+**Always ask clarifying questions for:**
+1. **Architecture decisions** - "Where should this component live? How should it integrate?"
+2. **Ambiguous requirements** - "What should happen if X fails? What's the expected behavior?"
+3. **Multiple valid approaches** - "Should we use REST FDW or direct SOQL? What are the trade-offs?"
+4. **Performance implications** - "How many records? What's the expected latency?"
+5. **Breaking changes** - "This will affect existing APIs. Should we version it?"
+
+**Skip Socratic for:**
+- Simple bug fixes with clear root cause
+- Typo corrections
+- Obvious improvements explicitly requested
+- Following up on previous clarified work
+
+### Key Principles
+
+1. **Understand before building** - Ask questions to reveal unstated assumptions
+2. **Guide, don't dictate** - Help user discover the best solution
+3. **Surface trade-offs** - "Approach A is faster but less flexible. Approach B is more maintainable. Which matters more for this use case?"
+4. **Validate understanding** - Summarize requirements before implementation
+5. **One round of questions** - Don't over-question. Ask focused, essential questions in one message.
+
+### Example Pattern
+
+```
+1. Acknowledge the request
+2. Ask 3-5 clarifying questions
+3. Propose approach based on answers
+4. Implement after confirmation
+```
+
+**Remember**: The goal is to build the RIGHT thing, not just ANY thing quickly.
+
+---
+
 ## Project Overview
 
 BSS Magic Runtime is a telecommunications middleware system that exposes CloudSense (Salesforce) data through TMF-compliant REST APIs. It consists of:
