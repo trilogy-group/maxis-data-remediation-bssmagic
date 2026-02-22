@@ -127,18 +127,44 @@ SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are 
 ## Architecture
 
 ```
-User → Dashboard (3000) → Batch Orchestrator (8082) → TMF Runtime API (ALB)
-                                                            ↓
-                                                    PostgreSQL + REST FDW
-                                                            ↓
-                                                        Salesforce
+                    ┌─────────────────┐
+                    │  User/Browser   │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────────┐
+                    │  Dashboard (3000)   │
+                    └─┬─────────────────┬─┘
+                      │                 │
+        READ OPS      │                 │      WRITE/REMEDIATION OPS
+      (GET queries)   │                 │      (POST /remediate/*)
+                      │                 │
+                      ▼                 ▼
+            /api/tmf-api/*    /api/orchestrator/remediate/*
+                      │                 │
+                      │                 ▼
+                      │     ┌──────────────────────┐
+                      │     │ Batch Orchestrator   │
+                      │     │      (8082)          │
+                      │     └──────────┬───────────┘
+                      │                │
+                      └────────────────┘
+                             │
+                    ┌────────▼────────────┐
+                    │  TMF Runtime (ALB)  │
+                    └────────┬────────────┘
+                             │
+                    ┌────────▼────────────┐
+                    │ PostgreSQL + FDW    │
+                    └────────┬────────────┘
+                             │
+                    ┌────────▼────────────┐
+                    │     Salesforce      │
+                    └─────────────────────┘
 
 Flow:
-1. Dashboard calls Batch Orchestrator's unified remediation endpoint
-2. Batch Orchestrator uses TMFClient to call TMF Runtime API (via ALB)
-3. TMF Runtime translates requests to SQL queries on PostgreSQL
-4. REST FDW forwards write operations to Salesforce via REST API
-5. Results flow back through the chain
+- READ Operations: Dashboard → TMF Runtime API directly
+- WRITE Operations: Dashboard → Batch Orchestrator → TMF Runtime API
+- All TMF Runtime operations use PostgreSQL FDW to access Salesforce
 ```
 
 ## Contributing
