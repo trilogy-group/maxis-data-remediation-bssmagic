@@ -22,7 +22,7 @@ services:
     container_name: bssmagic-runtime
     environment:
       - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=bssmagic
+      - POSTGRES_DB=bssmagic_runtime
       - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}
       - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET:-}
       - SALESFORCE_USERNAME=${SALESFORCE_USERNAME:-}

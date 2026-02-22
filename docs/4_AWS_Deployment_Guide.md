@@ -275,7 +275,7 @@ aws iam put-role-policy \
     }],
     "environment": [
       {"name": "POSTGRES_PASSWORD", "value": "admin"},
-      {"name": "POSTGRES_DB", "value": "bssmagic"},
+      {"name": "POSTGRES_DB", "value": "bssmagic_runtime"},
       {"name": "SALESFORCE_API_VERSION", "value": "v63.0"},
       {"name": "SALESFORCE_CLIENT_ID", "value": "YOUR_CLIENT_ID"},
       {"name": "SALESFORCE_CLIENT_SECRET", "value": "YOUR_CLIENT_SECRET"},
@@ -558,4 +558,4 @@ curl http://$ALB_DNS:8000/metadata | jq '.sources[0].resources | length'
 | SALESFORCE_LOGIN_SERVER | Yes | login.salesforce.com or test.salesforce.com |
 | SALESFORCE_API_VERSION | No | Default: v63.0 |
 | POSTGRES_PASSWORD | No | Default: admin |
-| POSTGRES_DB | No | Default: bssmagic |
+| POSTGRES_DB | No | Default: bssmagic_runtime |

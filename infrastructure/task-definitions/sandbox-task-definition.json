@@ -41,7 +41,7 @@
         },
         {
           "name": "POSTGRES_DB",
-          "value": "bssmagic"
+          "value": "bssmagic_runtime"
         }
       ],
       "secrets": [

@@ -722,7 +722,7 @@ Resources:
             - Name: POSTGRES_PASSWORD
               Value: admin
             - Name: POSTGRES_DB
-              Value: bssmagic
+              Value: bssmagic_runtime
             - Name: SALESFORCE_API_VERSION
               Value: v63.0
           Secrets:
