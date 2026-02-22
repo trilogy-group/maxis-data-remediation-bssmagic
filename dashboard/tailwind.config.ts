@@ -1,0 +1,127 @@
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Poppins', 'sans-serif', 'system-ui'],
+        mono: ['Poppins', 'sans-serif', 'system-ui'],
+      },
+      colors: {
+        // Totogi Brand Colors
+        background: {
+          DEFAULT: 'hsl(var(--background))',
+          paper: 'rgb(var(--background-paper))',
+          elevated: 'rgb(var(--background-elevated))',
+        },
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+          50: 'rgb(245, 235, 255)',
+          100: 'rgb(235, 215, 255)',
+          200: 'rgb(215, 185, 255)',
+          300: 'rgb(195, 155, 255)',
+          400: 'rgb(175, 125, 245)',
+          500: 'rgb(155, 95, 235)',
+          600: 'rgb(135, 65, 225)',
+          700: 'rgb(128, 45, 200)',
+          800: 'rgb(110, 35, 175)',
+          900: 'rgb(90, 25, 150)',
+        },
+        // Totogi Navigation Blue
+        navigation: {
+          DEFAULT: 'rgb(0, 29, 61)',
+          50: 'rgb(230, 240, 255)',
+          100: 'rgb(200, 220, 245)',
+          200: 'rgb(150, 180, 220)',
+          300: 'rgb(100, 140, 195)',
+          400: 'rgb(75, 110, 170)',
+          500: 'rgb(50, 80, 145)',
+          600: 'rgb(30, 60, 120)',
+          700: 'rgb(15, 45, 95)',
+          800: 'rgb(5, 35, 75)',
+          900: 'rgb(0, 29, 61)',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+          50: 'rgb(255, 240, 240)',
+          100: 'rgb(255, 225, 225)',
+          200: 'rgb(255, 200, 200)',
+          300: 'rgb(255, 160, 165)',
+          400: 'rgb(255, 120, 130)',
+          500: 'rgb(255, 100, 110)',
+          600: 'rgb(255, 79, 88)',
+          700: 'rgb(235, 60, 70)',
+          800: 'rgb(215, 40, 50)',
+          900: 'rgb(195, 20, 30)',
+        },
+        // Totogi Success Green
+        success: {
+          DEFAULT: 'rgb(0, 200, 83)',
+          50: 'rgb(240, 255, 245)',
+          100: 'rgb(220, 252, 231)',
+          200: 'rgb(187, 247, 208)',
+          300: 'rgb(134, 239, 172)',
+          400: 'rgb(74, 222, 128)',
+          500: 'rgb(34, 197, 94)',
+          600: 'rgb(22, 163, 74)',
+          700: 'rgb(21, 128, 61)',
+          800: 'rgb(22, 101, 52)',
+          900: 'rgb(0, 100, 40)',
+        },
+        // Totogi Warning Orange
+        warning: {
+          DEFAULT: 'rgb(255, 187, 0)',
+          50: 'rgb(255, 250, 230)',
+          100: 'rgb(254, 243, 199)',
+          200: 'rgb(253, 230, 138)',
+          300: 'rgb(252, 211, 77)',
+          400: 'rgb(251, 191, 36)',
+          500: 'rgb(245, 158, 11)',
+          600: 'rgb(217, 119, 6)',
+          700: 'rgb(180, 83, 9)',
+          800: 'rgb(146, 64, 14)',
+          900: 'rgb(190, 140, 0)',
+        },
+        // Totogi Error Red
+        error: {
+          DEFAULT: 'rgb(255, 79, 88)',
+          50: 'rgb(255, 240, 240)',
+          100: 'rgb(254, 226, 226)',
+          200: 'rgb(254, 202, 202)',
+          300: 'rgb(252, 165, 165)',
+          400: 'rgb(248, 113, 113)',
+          500: 'rgb(239, 68, 68)',
+          600: 'rgb(220, 38, 38)',
+          700: 'rgb(185, 28, 28)',
+          800: 'rgb(153, 27, 27)',
+          900: 'rgb(195, 20, 30)',
+        },
+        neutral: {
+          50: 'rgb(250, 250, 250)',
+          100: 'rgb(245, 245, 245)',
+          200: 'rgb(230, 230, 230)',
+          300: 'rgb(210, 210, 210)',
+          400: 'rgb(180, 180, 180)',
+          500: 'rgb(150, 150, 150)',
+          600: 'rgb(120, 120, 120)',
+          700: 'rgb(90, 90, 90)',
+          800: 'rgb(60, 60, 60)',
+          900: 'rgb(30, 30, 30)',
+        },
+        text: {
+          primary: 'rgb(var(--text-primary))',
+          secondary: 'rgb(var(--text-secondary))',
+          tertiary: 'rgb(var(--text-tertiary))',
+          disabled: 'rgb(var(--text-disabled))',
+        },
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;

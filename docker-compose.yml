@@ -1,0 +1,83 @@
+# Usage Instructions:
+#
+# 1. Startup with credentials (using production version):
+#    CREDENTIALS_FILE=~/Downloads/my-credentials.zip docker compose up
+#
+# 2. View logs:
+#    docker compose logs -f bssmagic-runtime
+#
+# 3. Check health:
+#    http://localhost:8000/docs.html (view the API docs)
+#    http://localhost:3000/health (internal health check)
+#    http://localhost:8000/productCatalogManagement/v5/productCatalog (returns empty array if there is no mapping)
+#    http://localhost:8000/metadata (returns metadata about available sources and resources, including their names and mapping status)
+#
+# 4. Stop and clean up:
+#    docker compose down -v  # -v removes volumes
+
+services:
+  bssmagic-runtime:
+    image: 008731404932.dkr.ecr.us-east-1.amazonaws.com/prod/bssmagic-runtime:latest 
+    pull_policy: if_not_present
+    container_name: bssmagic-runtime
+    environment:
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=bssmagic
+      - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}
+      - SALESFORCE_CLIENT_SECRET=${SALESFORCE_CLIENT_SECRET:-}
+      - SALESFORCE_USERNAME=${SALESFORCE_USERNAME:-}
+      - SALESFORCE_PASSWORD=${SALESFORCE_PASSWORD:-}
+      - SALESFORCE_LOGIN_SERVER=${SALESFORCE_LOGIN_SERVER:-}
+      - SALESFORCE_API_VERSION=${SALESFORCE_API_VERSION:-v63.0}
+
+    labels:
+      - 'logging.service=bssmagic-runtime'
+      - 'logging.environment=${NODE_ENV:-production}'
+
+    volumes:
+      # Persistent database storage
+      - postgres-volume:/var/lib/postgresql/data
+
+      # Mount credentials
+      - ${CREDENTIALS_FILE:-./credentials.zip}:/credentials:ro
+
+      # Log volumes for centralized log collection
+      - ./logs:/var/log/bssmagic:rw
+
+    ports:
+      # PostgreSQL
+      - '5432:5432'
+
+      # TMF Server HTTP API
+      - '8000:8000'
+
+      # Controller health/metrics endpoint
+      - '3000:3000'
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    networks:
+      - bssmagic-network
+
+    # Ensure the container has enough resources
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+volumes:
+  postgres-volume:
+    driver: local
+  pgadmin-data:
+    driver: local
+
+networks:
+  bssmagic-network:
+    driver: bridge

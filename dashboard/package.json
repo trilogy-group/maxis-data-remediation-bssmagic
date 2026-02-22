@@ -1,0 +1,63 @@
+{
+  "name": "totogi-bss-app-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "dev:webpack": "next dev --webpack",
+    "dev:turbo": "next dev --turbo",
+    "dev:preview": "NEXT_PUBLIC_BUILD_FOR_PREVIEW=true npm run dev",
+    "dev:mocked": "NEXT_PUBLIC_USE_MOCK_DATA=true npm run dev:preview",
+    "build": "NODE_ENV=production next build",
+    "build:preview": "NEXT_PUBLIC_BUILD_FOR_PREVIEW=true npm run build",
+    "build:mocked": "NEXT_PUBLIC_USE_MOCK_DATA=true npm run build:preview",
+    "start": "next start",
+    "start:preview": "NEXT_PUBLIC_BUILD_FOR_PREVIEW=true npm run start",
+    "start:mocked": "NEXT_PUBLIC_USE_MOCK_DATA=true npm run start:preview",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "@tanstack/react-form": "^1.23.7",
+    "@tanstack/react-query": "^5.59.0",
+    "@tanstack/react-table": "^8.20.5",
+    "autoprefixer": "^10.4.21",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.447.0",
+    "next": "^15.6.0-canary.29",
+    "postcss": "^8.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^3.4.18",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.2",
+    "@playwright/test": "^1.48.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.0.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.3",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^25.0.1",
+    "msw": "^2.11.5",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "sources": {
+    "AWS Runtime (Singapore)": {
+      "type": "api",
+      "baseUrl": "http://bssmagic-alb-526861445.ap-southeast-1.elb.amazonaws.com"
+    }
+  },
+  "entities": {
+    "shoppingCart": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/shoppingCart/v5/",
+      "standard": "TMF663",
+      "notes": "ShoppingCart is working! Mapped from cscfga__Product_Basket__c"
+    },
+    "service": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/serviceInventoryManagement/v5/",
+      "standard": "TMF638"
+    },
+    "partyAccount": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/accountManagement/v5/",
+      "standard": "TMF666"
+    },
+    "billingAccount": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/accountManagement/v5/",
+      "standard": "TMF666"
+    },
+    "individual": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/partyManagement/v5/",
+      "standard": "TMF632",
+      "notes": "Individual (Contact) - for PIC Email lookup"
+    },
+    "organization": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/partyManagement/v5/",
+      "standard": "TMF632",
+      "notes": "Organization (Account)"
+    },
+    "productOrder": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productOrderingManagement/v5/",
+      "standard": "TMF622"
+    },
+    "product": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productInventory/v5/",
+      "standard": "TMF637"
+    },
+    "solution1867FibreVoice": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productInventory/v5/",
+      "standard": "TMF637",
+      "notes": "Custom runtime view: salesforce_server.solution1867FibreVoice (1867 candidates - Fibre + Voice)"
+    },
+    "solution1867FibreOnly": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productInventory/v5/",
+      "standard": "TMF637",
+      "notes": "Custom runtime view: salesforce_server.solution1867FibreOnly (1867 candidates - Fibre only)"
+    },
+    "solution1867MobileEsms": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productInventory/v5/",
+      "standard": "TMF637",
+      "notes": "Custom runtime view: salesforce_server.solution1867MobileEsms (1867 candidates - Mobile + ESMS)"
+    },
+    "solution1867AccessVoice": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productInventory/v5/",
+      "standard": "TMF637",
+      "notes": "Custom runtime view: salesforce_server.solution1867AccessVoice (1867 candidates - Access & Voice)"
+    },
+    "productOffering": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/productCatalogManagement/v5/",
+      "standard": "TMF620"
+    },
+    "serviceProblem": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/serviceProblemManagement/v5/",
+      "standard": "TMF656",
+      "notes": "ServiceProblem - tracks confirmed issues and remediation progress"
+    },
+    "serviceProblemEventRecord": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/serviceProblemManagement/v5/",
+      "standard": "TMF656",
+      "notes": "ServiceProblemEventRecord - maps to Salesforce AsyncApexJob for Apex batch job tracking"
+    },
+    "batchSchedule": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/batchProcessing/v1/",
+      "standard": "Custom",
+      "notes": "BatchSchedule - batch remediation schedules (stored in tmf.batchSchedule)"
+    },
+    "batchJob": {
+      "source": "AWS Runtime (Singapore)",
+      "serverUrl": "/tmf-api/batchProcessing/v1/",
+      "standard": "Custom",
+      "notes": "BatchJob - batch remediation executions (stored in tmf.batchJob)"
+    }
+  }
+}

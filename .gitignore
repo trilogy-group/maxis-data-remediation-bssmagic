@@ -1,0 +1,58 @@
+# Credentials and secrets
+*.pem
+*.key
+*.crt
+*.zip
+.env
+.env.local
+.env.production
+credentials/
+*credentials*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+*.pyc
+
+# Node.js
+node_modules/
+.next/
+dist/
+build/
+*.log
+*.tsbuildinfo
+
+# IDEs
+.vscode/
+.idea/
+.cursor/
+.claude/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Backups
+*.bak
+*.backup
+*.old
+*~
+
+# AWS
+.aws-sam/
+
+# Temporary
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --primary: 269 58% 48%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --background-paper: 255, 255, 255;
+    --background-elevated: 255, 255, 255;
+    --text-primary: 30, 30, 30;
+    --text-secondary: 90, 90, 90;
+    --text-tertiary: 120, 120, 120;
+    --text-disabled: 180, 180, 180;
+  }
+}

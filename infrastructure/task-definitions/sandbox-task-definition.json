@@ -1,0 +1,86 @@
+{
+  "family": "bssmagic-runtime-sandbox",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::652413721990:role/bssmagic-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::652413721990:role/bssmagic-task-role",
+  "containerDefinitions": [
+    {
+      "name": "bssmagic-runtime-sandbox",
+      "image": "652413721990.dkr.ecr.ap-southeast-1.amazonaws.com/bssmagic-runtime:custom-v1",
+      "essential": true,
+      "entryPoint": ["sh", "-c"],
+      "command": ["echo $RUNTIME_CREDENTIALS_B64 | base64 -d > /credentials && /usr/local/bin/bssmagic-entrypoint.sh"],
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 5432,
+          "hostPort": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "POSTGRES_PASSWORD",
+          "value": "admin"
+        },
+        {
+          "name": "SALESFORCE_API_VERSION",
+          "value": "v63.0"
+        },
+        {
+          "name": "POSTGRES_DB",
+          "value": "bssmagic"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "SALESFORCE_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/salesforce-credentials:client_id::"
+        },
+        {
+          "name": "SALESFORCE_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/salesforce-credentials:client_secret::"
+        },
+        {
+          "name": "SALESFORCE_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/salesforce-credentials:username::"
+        },
+        {
+          "name": "SALESFORCE_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/salesforce-credentials:password::"
+        },
+        {
+          "name": "SALESFORCE_LOGIN_SERVER",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/salesforce-credentials:login_server::"
+        },
+        {
+          "name": "RUNTIME_CREDENTIALS_B64",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:652413721990:secret:bssmagic/runtime-credentials-sandbox"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/bssmagic-runtime-sandbox",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "linuxParameters": {
+        "initProcessEnabled": true
+      }
+    }
+  ]
+}

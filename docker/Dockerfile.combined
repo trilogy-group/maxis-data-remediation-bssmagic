@@ -1,0 +1,124 @@
+# Combined Container: TS Dashboard + 1147-Gateway + CloudSense JS Gateway + Batch Orchestrator
+# Uses supervisord to manage multiple processes
+#
+# Ports:
+#   - 3000: TypeScript Dashboard (Next.js)
+#   - 8080: CloudSense JS Gateway (FastAPI + Playwright)
+#   - 8081: 1147-Gateway (FastAPI + Apex)
+#   - 8082: Batch Orchestrator (FastAPI)
+
+# ============================================
+# Stage 1: Build TypeScript Dashboard
+# ============================================
+FROM node:20-slim AS node-builder
+
+WORKDIR /app/ts-dashboard
+COPY ts-dashboard/package*.json ./
+RUN npm ci
+COPY ts-dashboard/ .
+
+# Build without basePath - ALB will route paths appropriately
+RUN npm run build
+
+# ============================================
+# Stage 2: Final Runtime Image
+# ============================================
+FROM python:3.11-slim
+
+# Install system dependencies including Chromium for Playwright
+RUN apt-get update && apt-get install -y \
+    curl \
+    supervisor \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libgbm1 \
+    libasound2 \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ============================================
+# Install Python dependencies
+# ============================================
+
+# 1147-Gateway
+COPY 1147-gateway/requirements.txt /app/1147-gateway/requirements.txt
+RUN pip install --no-cache-dir -r /app/1147-gateway/requirements.txt
+
+# CloudSense JS Gateway
+COPY cloudsense-js-gateway/requirements.txt /app/cloudsense-js-gateway/requirements.txt
+RUN pip install --no-cache-dir -r /app/cloudsense-js-gateway/requirements.txt
+
+# Batch Orchestrator
+COPY batch-orchestrator/requirements.txt /app/batch-orchestrator/requirements.txt
+RUN pip install --no-cache-dir -r /app/batch-orchestrator/requirements.txt
+
+# Install Playwright and its browsers
+RUN pip install playwright && \
+    playwright install chromium && \
+    playwright install-deps chromium
+
+# ============================================
+# Copy application code
+# ============================================
+
+# Copy 1147-Gateway
+COPY 1147-gateway/app /app/1147-gateway/app
+
+# Copy CloudSense JS Gateway
+COPY cloudsense-js-gateway/*.py /app/cloudsense-js-gateway/
+
+# Copy Batch Orchestrator
+COPY batch-orchestrator/app /app/batch-orchestrator/app
+
+# Copy built TS Dashboard
+COPY --from=node-builder /app/ts-dashboard/.next /app/ts-dashboard/.next
+COPY --from=node-builder /app/ts-dashboard/node_modules /app/ts-dashboard/node_modules
+COPY --from=node-builder /app/ts-dashboard/package.json /app/ts-dashboard/
+COPY --from=node-builder /app/ts-dashboard/public /app/ts-dashboard/public
+
+# Create log directory
+RUN mkdir -p /var/log/supervisor
+
+# ============================================
+# Supervisor configuration
+# ============================================
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# ============================================
+# Environment variables (defaults)
+# ============================================
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Salesforce credentials (override at runtime)
+ENV SF_USERNAME=""
+ENV SF_PASSWORD=""
+ENV SF_SECURITY_TOKEN=""
+ENV SF_LOGIN_URL="https://test.salesforce.com"
+
+# TMF Runtime
+ENV NEXT_PUBLIC_TMF_API_URL="http://bssmagic-alb-526861445.ap-southeast-1.elb.amazonaws.com"
+ENV TMF_API_KEY="bssmagic-d58d6761265b01accc13e8b21bae8282"
+
+# Playwright/Chromium settings
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMIUM_PATH=/usr/bin/chromium
+
+# Expose all ports
+EXPOSE 3000 8080 8081 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

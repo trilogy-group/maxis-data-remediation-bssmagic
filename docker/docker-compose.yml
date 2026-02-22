@@ -1,0 +1,53 @@
+# Docker Compose for local development and testing
+# 
+# Usage:
+#   docker-compose -f docker/docker-compose.yml up --build
+#
+# This runs:
+#   - Combined container (TS Dashboard + Gateways) on ports 3000, 8080, 8081
+#   - BSS Magic Runtime (if needed for local testing)
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Combined Middleware Container
+  # ============================================
+  bssmagic-middleware:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.combined
+    container_name: bssmagic-middleware
+    ports:
+      - "3000:3000"   # TS Dashboard
+      - "8080:8080"   # CloudSense JS Gateway
+      - "8081:8081"   # 1147-Gateway
+    environment:
+      # Salesforce credentials (from .env file or secrets)
+      - SF_USERNAME=${SF_USERNAME}
+      - SF_PASSWORD=${SF_PASSWORD}
+      - SF_SECURITY_TOKEN=${SF_SECURITY_TOKEN}
+      - SF_LOGIN_URL=${SF_LOGIN_URL:-https://test.salesforce.com}
+      
+      # TMF Runtime (AWS)
+      - NEXT_PUBLIC_TMF_API_URL=${TMF_API_URL:-http://bssmagic-alb-526861445.ap-southeast-1.elb.amazonaws.com}
+      - TMF_API_KEY=${TMF_API_KEY:-bssmagic-d58d6761265b01accc13e8b21bae8282}
+      
+      # Node.js
+      - NODE_ENV=production
+    volumes:
+      # Mount logs for debugging
+      - ./logs:/var/log/supervisor
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - bssmagic-network
+
+networks:
+  bssmagic-network:
+    driver: bridge
