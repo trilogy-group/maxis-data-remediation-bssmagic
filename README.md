@@ -127,12 +127,18 @@ SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are 
 ## Architecture
 
 ```
-User → Dashboard (3000) → Batch Orchestrator (8082) → TMF Runtime (ALB)
-                                    ↓                         ↓
-                              Unified Remediation      PostgreSQL + FDW
-                              (Manual & Scheduled)           ↓
-                                    ↓                    Salesforce
-                              TMF API REST FDW
+User → Dashboard (3000) → Batch Orchestrator (8082) → TMF Runtime API (ALB)
+                                                            ↓
+                                                    PostgreSQL + REST FDW
+                                                            ↓
+                                                        Salesforce
+
+Flow:
+1. Dashboard calls Batch Orchestrator's unified remediation endpoint
+2. Batch Orchestrator uses TMFClient to call TMF Runtime API (via ALB)
+3. TMF Runtime translates requests to SQL queries on PostgreSQL
+4. REST FDW forwards write operations to Salesforce via REST API
+5. Results flow back through the chain
 ```
 
 ## Contributing
