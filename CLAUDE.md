@@ -93,9 +93,11 @@ cd aws-deployment
 ```
 User/Browser → TypeScript Dashboard (3000)
               ↓
-              ├→ BSS Magic Runtime (AWS ALB) → PostgreSQL + FDW → Salesforce (SOQL)
-              ├→ Batch Orchestrator (8082) → TMF API → REST FDW → Salesforce
+              ├→ ALB → BSS Magic Runtime (ECS) → PostgreSQL + FDW → Salesforce (SOQL)
+              ├→ Batch Orchestrator (8082) → ALB → BSS Magic Runtime → REST FDW → Salesforce
               └→ JS Gateway (8080) → Playwright → CloudSense JS APIs (optional fallback)
+
+Note: ALB (Application Load Balancer) is the public endpoint that routes to BSS Magic Runtime ECS service
 ```
 
 ### Foreign Data Wrapper (FDW) Pattern

@@ -144,27 +144,32 @@ SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are 
                       │                 ▼
                       │     ┌──────────────────────┐
                       │     │ Batch Orchestrator   │
-                      │     │      (8082)          │
+                      │     │   (ECS - Port 8082)  │
                       │     └──────────┬───────────┘
                       │                │
                       └────────────────┘
                              │
-                    ┌────────▼────────────┐
-                    │  TMF Runtime (ALB)  │
-                    └────────┬────────────┘
+                    ┌────────▼──────────────────────┐
+                    │  Application Load Balancer    │
+                    │  (Public Endpoint)            │
+                    └────────┬──────────────────────┘
                              │
-                    ┌────────▼────────────┐
-                    │ PostgreSQL + FDW    │
-                    └────────┬────────────┘
+                    ┌────────▼──────────────────────┐
+                    │  BSS Magic Runtime            │
+                    │  (ECS Container)              │
+                    │  - TMF Server                 │
+                    │  - PostgreSQL + FDW           │
+                    └────────┬──────────────────────┘
                              │
                     ┌────────▼────────────┐
                     │     Salesforce      │
+                    │  (CloudSense Data)  │
                     └─────────────────────┘
 
 Flow:
-- READ Operations: Dashboard → TMF Runtime API directly
-- WRITE Operations: Dashboard → Batch Orchestrator → TMF Runtime API
-- All TMF Runtime operations use PostgreSQL FDW to access Salesforce
+- READ: Dashboard → ALB → BSS Magic Runtime → PostgreSQL FDW → Salesforce
+- WRITE: Dashboard → Batch Orchestrator → ALB → BSS Magic Runtime → REST FDW → Salesforce
+- ALB is the public endpoint that routes to BSS Magic Runtime ECS service
 ```
 
 ## Contributing

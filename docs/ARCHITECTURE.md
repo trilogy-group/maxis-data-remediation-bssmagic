@@ -31,23 +31,37 @@ The BSS Magic Runtime is a unified middleware solution that enables **TMF Open A
 │   Dashboard (3000)  │  Next.js 15 + React + TanStack Query
 └──────┬──────────────┘
        │
-       ├──► TMF Runtime API (Read operations)
+       ├──► Read Operations (GET /api/tmf-api/*)
        │
-       └──► Batch Orchestrator (8082) ─┐
-                                        │
-            ┌───────────────────────────┘
+       └──► Write Operations (POST /api/orchestrator/*) ───┐
+                                                            │
+            ┌───────────────────────────────────────────────┘
             │
             ▼
-       ┌────────────────┐
-       │  TMF Runtime   │  PostgreSQL + FDW + TMF Server
-       │   (AWS ECS)    │
-       └────────┬───────┘
+       ┌────────────────────┐
+       │ Batch Orchestrator │  FastAPI (ECS - Port 8082)
+       │      (8082)        │
+       └────────┬───────────┘
                 │
-                ▼
-         ┌──────────────┐
-         │  Salesforce  │  CloudSense Objects + Heroku OE DB
-         │    (Maxis)   │
-         └──────────────┘
+                └──► Both paths converge here
+                         │
+                         ▼
+                ┌─────────────────────┐
+                │ Application Load    │  Public Endpoint
+                │ Balancer (ALB)      │  bssmagic-alb-***.elb.amazonaws.com
+                └─────────┬───────────┘
+                          │
+                          ▼
+                ┌─────────────────────┐
+                │  BSS Magic Runtime  │  TMF Server + PostgreSQL + FDW
+                │    (ECS Container)  │
+                └─────────┬───────────┘
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │  Salesforce  │  CloudSense Objects + Heroku OE DB
+                   │    (Maxis)   │
+                   └──────────────┘
 ```
 
 ---
