@@ -58,7 +58,7 @@ The BSS Magic Runtime is a unified middleware solution that enables **TMF Open A
 
 | Property | Value |
 |----------|-------|
-| **Technology** | Next.js 15, React 18, TanStack Query |
+| **Technology** | Next.js 15, React 19, TanStack Query |
 | **Location** | `dashboard/` |
 | **Deployment** | AWS CloudFront + S3 (Production) |
 
@@ -70,8 +70,20 @@ The BSS Magic Runtime is a unified middleware solution that enables **TMF Open A
 - PIC Email lookup
 
 **API Routes:**
-- `/api/tmf-api/[...slug]` - Proxy to TMF Runtime
-- `/api/remediate/*` - Proxy to Batch Orchestrator
+
+*Proxy Routes (forward to external services):*
+- `/api/tmf-api/[...slug]` - Proxy to TMF Runtime (all TMF API endpoints)
+- `/api/orchestrator/[...path]` - Proxy to Batch Orchestrator (remediation endpoints)
+- `/api/gateway-cloudsense/[...path]` - Proxy to CloudSense JS Gateway (optional)
+
+*Internal Routes (dashboard-specific logic):*
+- `/api/solutions/failed-migration` - Query solutions with migration issues
+- `/api/solutions/fix` - Trigger solution remediation (uses Batch Orchestrator)
+- `/api/service-problem` - CRUD operations for ServiceProblem records
+- `/api/work-order` - Work order management
+- `/api/task` - Task management
+- `/api/service-attachment/{serviceId}` - Get service attachment data
+- `/api/direct/shopping-cart` - Direct PostgreSQL access (workaround for JSONB bug)
 
 ---
 
@@ -90,10 +102,16 @@ The BSS Magic Runtime is a unified middleware solution that enables **TMF Open A
 - **TMF-only access** - All operations through TMF API (no direct Apex)
 
 **Key Endpoints:**
+
+*Note: All endpoints accessible at root path (e.g., `/remediate/{id}`) and via Dashboard proxy (`/api/orchestrator/remediate/{id}`)*
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/remediate/{solution_id}` | POST | Remediate single solution (manual or automated) |
+| `/remediate/{solution_id}` | POST | Remediate single solution (1147 issue) |
 | `/remediate` | POST | Bulk remediation for multiple solutions |
+| `/oe/discover` | POST | Discover services with OE data issues (1867) |
+| `/oe/remediate` | POST | Bulk OE remediation workflow |
+| `/oe/remediate/{service_id}` | POST | Remediate single OE service (1867 issue) |
 | `/execute/{schedule_id}` | POST | Execute specific schedule |
 | `/scheduler/start` | POST | Start automatic scheduler |
 | `/scheduler/stop` | POST | Stop automatic scheduler |
@@ -120,6 +138,16 @@ The BSS Magic Runtime is a unified middleware solution that enables **TMF Open A
 - Browser automation for CloudSense Solution Console
 - Load baskets and configurations
 - Update OE attributes via JS API (fallback method)
+- Verify OE data integrity
+
+**Key Endpoints:**
+| Endpoint | Method | Required Parameters | Purpose |
+|----------|--------|---------------------|---------|
+| `/api/configurations` | POST | `basket_id`, `solution_name` | Load basket configurations |
+| `/api/oe/update` | POST | `basket_id`, `solution_name`, `attributes[]` | Update OE attributes via CloudSense JS |
+| `/api/verify-oe` | POST | `basket_id`, `solution_name` | Verify OE data completeness |
+
+**Important:** All endpoints require `solution_name` parameter (not documented previously but required by implementation).
 
 **Note:** This is a **fallback option** when TMF API REST FDW is not available. Primary path is through Batch Orchestrator.
 

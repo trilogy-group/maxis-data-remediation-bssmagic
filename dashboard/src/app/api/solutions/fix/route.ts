@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Fix Failed Migration Solution
- * 
- * This endpoint triggers the 1147 Solution Empty remediation via the 1147 Gateway.
- * It executes the full 3-step remediation:
- * 1. DELETE - Remove existing partial data from Heroku
- * 2. MIGRATE - Re-push data from Salesforce to Heroku
- * 3. UPDATE - Update configuration metadata in Heroku
+ *
+ * This endpoint triggers unified remediation via the Batch Orchestrator.
+ * It executes the full 5-step remediation process:
+ * 1. DETECT - Query TMF API for affected solutions
+ * 2. ANALYZE - Identify missing/incorrect data
+ * 3. PATCH - Update via TMF API REST FDW
+ * 4. PERSIST - Write to CloudSense Heroku DB
+ * 5. SYNC - Update Salesforce objects
  */
-const GATEWAY_1147_URL = process.env.GATEWAY_1147_URL || 'http://localhost:8081';
+const ORCHESTRATOR_URL = process.env.ORCHESTRATOR_URL || 'http://localhost:8082';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,22 +24,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Call 1147 Gateway for full remediation
-    const response = await fetch(`${GATEWAY_1147_URL}/api/1147/remediate-full`, {
+    console.log(`[fix-solution] Remediating solution ${solutionId} via Batch Orchestrator`);
+
+    // Call Batch Orchestrator unified remediation endpoint
+    const response = await fetch(`${ORCHESTRATOR_URL}/remediate/${solutionId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ solutionId }),
+      body: JSON.stringify({ dry_run: false }),
+      // Longer timeout for remediation operations
+      signal: AbortSignal.timeout(120000), // 2 minutes
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      console.error('[fix-solution] Orchestrator error:', errorData);
+
       return NextResponse.json(
-        { 
+        {
           error: 'Failed to fix solution',
-          message: errorData.error || errorData.detail || `Gateway returned ${response.status}`,
-          gatewayError: errorData
+          message: errorData.error || errorData.detail || `Orchestrator returned ${response.status}`,
+          orchestratorError: errorData
         },
         { status: response.status }
       );
@@ -45,40 +53,38 @@ export async function POST(req: NextRequest) {
 
     const result = await response.json();
 
+    console.log(`[fix-solution] Success: ${result.success}, steps completed: ${result.steps_completed || 0}/5`);
+
     return NextResponse.json({
       success: result.success,
-      solutionId: result.solutionId,
-      message: result.success 
-        ? 'Solution remediation completed successfully. All 3 steps (DELETE, MIGRATE, UPDATE) were executed.'
-        : `Solution remediation failed at step: ${result.failedAt || 'unknown'}`,
+      solutionId: result.solution_id,
+      message: result.success
+        ? `Solution remediation completed successfully. ${result.steps_completed || 5} steps executed.`
+        : `Solution remediation failed: ${result.error || 'unknown error'}`,
       timestamp: new Date().toISOString(),
-      steps: result.results?.map((r: any) => ({
-        action: r.action,
-        success: r.success,
-        jobId: r.jobId,
-        error: r.error
-      })) || [],
-      failedAt: result.failedAt,
-      gatewayResponse: result
+      stepsCompleted: result.steps_completed,
+      details: result.details,
+      error: result.error,
+      orchestratorResponse: result
     });
 
   } catch (error) {
-    console.error('Error fixing solution:', error);
-    
-    // Check if it's a connection error to the gateway
+    console.error('[fix-solution] Error:', error);
+
+    // Check if it's a connection error to the orchestrator
     if (error instanceof TypeError && error.message.includes('fetch')) {
       return NextResponse.json(
-        { 
-          error: 'Gateway connection failed',
-          message: `Cannot connect to 1147 Gateway at ${GATEWAY_1147_URL}. Please ensure the gateway is running.`,
+        {
+          error: 'Orchestrator connection failed',
+          message: `Cannot connect to Batch Orchestrator at ${ORCHESTRATOR_URL}. Please ensure the orchestrator is running.`,
           details: error.message
         },
         { status: 503 }
       );
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fix solution',
         message: error instanceof Error ? error.message : 'Unknown error'
       },
@@ -86,4 +92,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
