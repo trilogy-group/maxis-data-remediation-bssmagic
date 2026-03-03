@@ -1,0 +1,595 @@
+# Cursor AI Rules - BSS Magic Runtime Project
+
+## Project Context
+
+You are working on **BSS Magic Runtime**, a telecommunications middleware system that exposes CloudSense (Salesforce) data through TMF-compliant REST APIs.
+
+**Tech Stack:**
+- Backend: Python (FastAPI), PostgreSQL, Foreign Data Wrapper (FDW)
+- Frontend: TypeScript, React, Vite, TanStack Query
+- Infrastructure: AWS ECS Fargate, Docker, CloudFormation
+- Standards: TMF Open APIs (TeleManagement Forum)
+
+**Repository:** https://github.com/trilogy-group/maxis-data-remediation-bssmagic
+
+## Core Principles
+
+### 1. **Always Follow Git Workflow** (CRITICAL)
+
+Before making ANY code changes:
+
+```bash
+# Check current branch
+git branch --show-current
+
+# If not on a feature branch, STOP and create one
+git checkout main
+git pull origin main
+git checkout -b feature/descriptive-name
+```
+
+**NEVER commit directly to main. Always use feature branches.**
+
+### 2. **Read Before Writing** (MANDATORY)
+
+- **ALWAYS read existing files** before suggesting modifications
+- Understand the current implementation patterns
+- Match existing code style and conventions
+- Look for similar implementations in the codebase
+
+### 3. **Socratic Method for Ambiguous Requests**
+
+When the user's request is unclear or could be implemented multiple ways:
+
+**❌ DON'T:** Immediately generate code
+**✅ DO:** Ask clarifying questions first
+
+Example:
+```
+User: "Add validation to the OE patcher"
+
+AI: "Let me clarify the requirements:
+- Which fields need validation? (PICEmail, BillingAccount, ReservedNumber?)
+- Should validation happen client-side, server-side, or both?
+- What should happen on validation failure? (Block submit, show warning, log error?)
+- Are there existing validation patterns I should follow?
+"
+```
+
+## Code Quality Standards
+
+### Python (FastAPI, Batch Orchestrator)
+
+**Style:**
+- Use type hints for all function parameters and returns
+- Follow PEP 8 conventions
+- Use descriptive variable names (no single letters except loop counters)
+- Maximum line length: 100 characters
+
+**Patterns:**
+```python
+# ✅ GOOD - Type hints, clear names, docstring
+async def remediate_oe_service(
+    service_id: str,
+    dry_run: bool = False
+) -> RemediationResult:
+    """Remediate OE data for a single service.
+
+    Args:
+        service_id: Salesforce service ID
+        dry_run: If True, validate without persisting changes
+
+    Returns:
+        RemediationResult with success status and details
+    """
+    ...
+
+# ❌ BAD - No types, unclear names, no docs
+def fix(s, d=False):
+    ...
+```
+
+**Error Handling:**
+```python
+# ✅ GOOD - Specific exceptions, clear messages
+try:
+    result = await tmf_client.get_service(service_id)
+except httpx.HTTPStatusError as e:
+    if e.response.status_code == 404:
+        raise ServiceNotFoundError(f"Service {service_id} not found")
+    raise
+except httpx.TimeoutException:
+    raise ServiceTimeoutError(f"Timeout fetching service {service_id}")
+
+# ❌ BAD - Bare except, generic errors
+try:
+    result = do_something()
+except:
+    raise Exception("Error")
+```
+
+### TypeScript/React (Dashboard)
+
+**Style:**
+- Use TypeScript strict mode (no `any` types)
+- Functional components with hooks (no class components)
+- Use TanStack Query for data fetching
+- Follow existing component structure
+
+**Patterns:**
+```tsx
+// ✅ GOOD - Typed props, clear interface, proper hooks
+interface OEPatcherProps {
+  serviceId: string;
+  onSuccess?: (result: RemediationResult) => void;
+}
+
+export function OEPatcher({ serviceId, onSuccess }: OEPatcherProps) {
+  const { mutate, isPending } = useRemediateOEService();
+
+  const handlePatch = () => {
+    mutate({ serviceId }, {
+      onSuccess: (data) => {
+        toast.success('Service patched successfully');
+        onSuccess?.(data);
+      },
+    });
+  };
+
+  return (
+    <Button onClick={handlePatch} disabled={isPending}>
+      {isPending ? 'Patching...' : 'Patch Service'}
+    </Button>
+  );
+}
+
+// ❌ BAD - No types, inline logic, no error handling
+export function OEPatcher(props: any) {
+  return <button onClick={() => fetch('/api/...')}>Patch</button>;
+}
+```
+
+### SQL (Runtime Views)
+
+**Critical Rules:**
+- Use **direct column references** for filterable fields (FDW pushes these to Salesforce)
+- **AVOID** COALESCE, CASE, or functions on filterable columns (client-side filtering, slow!)
+- Use `ROW(...)::tmf."TypeName"` for TMF complex types
+- Always include `::text` cast for ID fields
+
+**Patterns:**
+```sql
+-- ✅ GOOD - Direct reference, pushes to SOQL
+SELECT
+    t0."Id"::text AS "id",
+    t0."Status__c"::text AS "status"
+FROM salesforce_server."Service__c" t0
+WHERE t0."Status__c" = 'Active';  -- Efficient: pushed to Salesforce
+
+-- ❌ BAD - COALESCE prevents pushdown, filters client-side
+SELECT
+    t0."Id"::text AS "id",
+    COALESCE(t0."Status__c", 'Unknown')::text AS "status"
+FROM salesforce_server."Service__c" t0
+WHERE COALESCE(t0."Status__c", 'Unknown') = 'Active';  -- Slow!
+```
+
+## Git Commit Practices
+
+### Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation
+- `refactor`: Code restructuring
+- `test`: Tests
+- `chore`: Maintenance
+
+**Examples:**
+```
+feat(1867): add PICEmail validation with RFC 5322 compliance
+
+- Validate email format before patching
+- Show clear error messages for invalid emails
+- Add unit tests for edge cases
+
+Related: MCBDIR-37
+```
+
+### Before Committing
+
+**ALWAYS run these checks:**
+
+```bash
+# 1. Check what you're committing
+git status
+git diff
+
+# 2. Stage specific files (never git add .)
+git add path/to/specific/file.py
+
+# 3. Verify no secrets
+git diff --staged | grep -i "password\|secret\|key\|token"
+
+# 4. Run tests if applicable
+npm test
+python -m pytest
+
+# 5. Commit with descriptive message
+git commit -m "feat(scope): description"
+```
+
+## Module-Specific Rules
+
+### Module 1867 (OE Data Patching)
+
+**Files:**
+- Backend: `batch-orchestrator/app/services/oe_*.py`
+- Frontend: `docs/bss-magic-app-template/src/components/Modules/OE*.tsx`
+- SQL: `runtime/views/service1867*.sql`, `runtime/views/oe_foreign_tables.sql`
+
+**Key Concepts:**
+- 4-step flow: FETCH → ANALYZE → PERSIST → SYNC
+- SET_IF_EMPTY semantics (never overwrite existing data)
+- 4 service scenarios: Voice, Fibre, eSMS, Access
+- Enrichment chain: Service → BillingAccount → Contact → Individual → Email
+
+**When modifying:**
+- Test with all 4 service scenarios
+- Verify SET_IF_EMPTY logic works correctly
+- Check enrichment data resolution
+- Test dry-run mode
+
+### Module 1147 (Solution Empty)
+
+**Files:**
+- Backend: `batch-orchestrator/app/services/remediation_engine.py`
+- Frontend: `docs/bss-magic-app-template/src/components/Modules/SolutionEmptyModule.tsx`
+- SQL: `runtime/views/solution.sql`
+
+**Key Concepts:**
+- 5-step flow: VALIDATE → DELETE → MIGRATE → POLL → POST_UPDATE
+- ServiceProblem lifecycle tracking
+- Parallel batch processing with configurable concurrency
+
+### Batch Orchestrator
+
+**Files:** `batch-orchestrator/app/*`
+
+**Key Rules:**
+- All endpoints should have OpenAPI docs (FastAPI auto-generates)
+- Use `async`/`await` for I/O operations
+- Implement retry logic with exponential backoff
+- Log at appropriate levels (DEBUG, INFO, WARNING, ERROR)
+- Use structured logging (include context)
+
+### Dashboard (Vite App)
+
+**Files:** `docs/bss-magic-app-template/src/*`
+
+**Key Rules:**
+- Use TanStack Query for all API calls (no raw fetch)
+- Create custom hooks in `src/hooks/`
+- Use shadcn/ui components (in `src/components/ui/`)
+- Implement proper loading and error states
+- Use toast notifications for user feedback
+
+### Runtime SQL Views
+
+**Files:** `runtime/views/*.sql`
+
+**CRITICAL:**
+- Views are ephemeral and lost on container restart
+- Always ask before deploying to production runtime
+- Test in sandbox first
+- Document the purpose of custom x_* fields
+- Use direct column references for filtering
+
+## Security & Safety
+
+### NEVER Commit:
+- Credentials (*.pem, *.key, .env, *.zip with "credentials" in name)
+- Large binaries (*.jar, *.pdf, *.mp4, *.wav)
+- Dependencies (node_modules, venv, __pycache__)
+- Build outputs (.next, dist, out)
+- OS files (.DS_Store)
+
+### Before Suggesting Destructive Operations:
+
+**ALWAYS warn and confirm before:**
+- Deleting files or directories
+- Running `git reset --hard`
+- Running `git push --force`
+- Dropping database tables
+- Modifying production runtime views
+- Removing dependencies
+
+**Ask for confirmation:**
+```
+⚠️  WARNING: This operation will [describe impact]
+
+Are you sure you want to proceed? This action:
+- [Impact 1]
+- [Impact 2]
+- Cannot be easily undone
+
+Please confirm: yes/no
+```
+
+## Testing Requirements
+
+### Before Suggesting Code Changes:
+
+1. **Ask about existing tests:**
+   - "Do we have tests for this functionality?"
+   - "Should I add/update tests?"
+
+2. **For new features, suggest test cases:**
+   ```python
+   # Suggest adding tests like:
+   def test_oe_remediation_success():
+       """Test successful OE remediation with all fields present."""
+
+   def test_oe_remediation_missing_pic_email():
+       """Test handling of missing PIC email in enrichment data."""
+   ```
+
+3. **For bug fixes, add regression tests:**
+   ```python
+   def test_issue_175_post_update_404_detection():
+       """Regression test for MCBDIR-175: Ensure 404 detection works."""
+   ```
+
+## Documentation Requirements
+
+### When Adding New Features:
+
+**Always update:**
+1. Relevant README files
+2. API documentation (OpenAPI/docstrings)
+3. CLAUDE.md if it affects development workflow
+4. Component/function docstrings
+
+**Example:**
+```python
+async def new_feature(param: str) -> Result:
+    """One-line summary.
+
+    Detailed description of what this does, why it exists,
+    and any important implementation details.
+
+    Args:
+        param: Description of parameter
+
+    Returns:
+        Description of return value
+
+    Raises:
+        SpecificError: When this error occurs
+
+    Example:
+        >>> result = await new_feature("test")
+        >>> print(result.status)
+        'success'
+    """
+```
+
+## Code Review Checklist
+
+Before suggesting code changes, verify:
+
+- [ ] Read existing code to understand context
+- [ ] Matches existing code style and patterns
+- [ ] Follows module-specific conventions
+- [ ] Has proper error handling
+- [ ] Has type hints (Python) or types (TypeScript)
+- [ ] Has docstrings/comments for complex logic
+- [ ] No security vulnerabilities (SQL injection, XSS, etc.)
+- [ ] No performance anti-patterns (N+1 queries, etc.)
+- [ ] Will be committed on a feature branch, not main
+- [ ] Commit message follows conventional commit format
+
+## Common Mistakes to Avoid
+
+### ❌ DON'T:
+
+1. **Use client-side filtering on large datasets**
+   ```python
+   # BAD: Fetches everything then filters
+   all_services = await get_all_services()
+   active = [s for s in all_services if s.status == "Active"]
+   ```
+
+2. **Hardcode credentials or endpoints**
+   ```python
+   # BAD
+   API_KEY = "abc123"
+   URL = "https://maxis--fdrv2.sandbox.my.salesforce.com"
+   ```
+
+3. **Ignore errors silently**
+   ```python
+   # BAD
+   try:
+       do_something()
+   except:
+       pass
+   ```
+
+4. **Create abstractions prematurely**
+   ```python
+   # BAD: Creating a generic factory for one use case
+   class ServiceProcessorFactory:
+       ...
+
+   # GOOD: Keep it simple until you need abstraction
+   def process_service(service_id: str):
+       ...
+   ```
+
+5. **Modify files you haven't read**
+
+### ✅ DO:
+
+1. **Use server-side filtering**
+   ```python
+   # GOOD: Filters at database level
+   active_services = await get_services(status="Active", limit=100)
+   ```
+
+2. **Use environment variables**
+   ```python
+   # GOOD
+   API_KEY = os.getenv("SALESFORCE_API_KEY")
+   if not API_KEY:
+       raise ConfigError("SALESFORCE_API_KEY not set")
+   ```
+
+3. **Handle errors explicitly**
+   ```python
+   # GOOD
+   try:
+       result = await api_call()
+   except TimeoutError:
+       logger.error("API timeout", extra={"service_id": service_id})
+       raise ServiceTimeoutError(f"Timeout for {service_id}")
+   ```
+
+4. **Keep code simple and focused**
+   ```python
+   # GOOD: Direct, clear implementation
+   def validate_email(email: str) -> bool:
+       """Validate email format using regex."""
+       pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+       return re.match(pattern, email) is not None
+   ```
+
+5. **Always read files before editing**
+
+## Workflow Integration with Cursor
+
+### Cursor Composer Workflow:
+
+When using Cursor Composer for multi-file changes:
+
+1. **Start with explicit branch check:**
+   ```bash
+   git branch --show-current
+   # If on main, switch to feature branch first
+   ```
+
+2. **Read all affected files:**
+   - Use Cursor's codebase context
+   - Read files explicitly before suggesting changes
+
+3. **Make changes incrementally:**
+   - One logical change at a time
+   - Test after each change if possible
+
+4. **Review before committing:**
+   - Use Cursor's diff view
+   - Verify no unintended changes
+   - Check for any debugging code left behind
+
+5. **Commit with context:**
+   ```bash
+   git add specific-files
+   git commit -m "type(scope): clear description"
+   ```
+
+### Cursor Chat Best Practices:
+
+**When asked to implement something:**
+1. First, ask clarifying questions if needed
+2. Show plan before implementing
+3. Implement incrementally
+4. Explain what was changed and why
+
+**Example:**
+```
+User: "Add retry logic to the OE patcher"
+
+AI: "I'll add retry logic with exponential backoff to the OE patcher.
+
+Plan:
+1. Add retry configuration to config.py
+2. Implement retry decorator in oe_executor.py
+3. Apply to all TMF API calls
+4. Add tests for retry behavior
+
+Should I proceed? Any specific requirements for:
+- Max retries (suggest: 3)
+- Backoff timing (suggest: 1s, 2s, 4s)
+- Which operations to retry (suggest: network errors only)
+"
+```
+
+## Emergency Commands
+
+If you accidentally suggest something wrong:
+
+```bash
+# Undo last commit (not pushed)
+git reset HEAD~1
+
+# Discard local changes
+git checkout -- path/to/file
+
+# See what would be deleted
+git clean -n
+
+# Recover from reflog
+git reflog
+git checkout <commit-hash>
+```
+
+## Summary: Key Reminders
+
+1. ✅ **Always work on feature branches, never main**
+2. ✅ **Read files before suggesting changes**
+3. ✅ **Ask clarifying questions for ambiguous requests**
+4. ✅ **Follow existing code patterns and style**
+5. ✅ **Use direct column references in SQL views**
+6. ✅ **Commit frequently with clear messages**
+7. ✅ **Never commit secrets or large binaries**
+8. ✅ **Test before committing**
+9. ✅ **Document new features**
+10. ✅ **When in doubt, ask!**
+
+## Quick Reference
+
+**Start new work:**
+```bash
+git checkout main && git pull && git checkout -b feature/my-work
+```
+
+**Commit changes:**
+```bash
+git status
+git add specific-files
+git commit -m "type(scope): description"
+git push -u origin feature/my-work
+```
+
+**Create PR:**
+```bash
+gh pr create --title "..." --body "..."
+```
+
+**After merge:**
+```bash
+git checkout main && git pull
+```
+
+---
+
+**Remember:** The goal is to write clean, maintainable, secure code that follows project conventions and can be easily understood by the team. When in doubt, ask for clarification rather than making assumptions!
