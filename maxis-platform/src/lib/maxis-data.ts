@@ -1,0 +1,82 @@
+export const MAXIS_CONTRACT = {
+  value: '$120K',
+  scope: '4 data consistency use cases',
+  transactionVolume: '~$400M+ in transactions',
+  manualEffortSaved: '~40 person-months/year',
+};
+
+export const MAXIS_OBJECTS = [
+  { name: 'Account', apiName: 'Account', fields: 'Standard', records: '~50K', tmf: 'TMF632 Organization' },
+  { name: 'Contact', apiName: 'Contact', fields: 'Standard', records: '~80K', tmf: 'TMF632 Individual' },
+  { name: 'Billing Account', apiName: 'csconta__Billing_Account__c', fields: '~50', records: '~120K', tmf: 'TMF666 BillingAccount' },
+  { name: 'Product Basket', apiName: 'cscfga__Product_Basket__c', fields: '166', records: '~200K', tmf: 'TMF663 ShoppingCart' },
+  { name: 'Product Configuration', apiName: 'cscfga__Product_Configuration__c', fields: '~300', records: '618K', tmf: 'TMF637 (via ShoppingCart cartItem)' },
+  { name: 'Attribute', apiName: 'cscfga__Attribute__c', fields: '~50', records: '7.5M', tmf: '(Characteristic - too large to JOIN)' },
+  { name: 'Order', apiName: 'csord__Order__c', fields: '111', records: '~150K', tmf: 'TMF622 ProductOrder' },
+  { name: 'Solution', apiName: 'csord__Solution__c', fields: '136', records: '~520K', tmf: 'TMF637 Product' },
+  { name: 'Subscription', apiName: 'csord__Subscription__c', fields: '~100', records: '142K', tmf: 'TMF637 Product (child)' },
+  { name: 'Service', apiName: 'csord__Service__c', fields: '293', records: '321K', tmf: 'TMF638 Service' },
+  { name: 'Solution Definition', apiName: 'cssdm__Solution_Definition__c', fields: '~80', records: '~5K', tmf: 'TMF620 ProductSpec' },
+  { name: 'Opportunity', apiName: 'Opportunity', fields: 'Standard', records: '~100K', tmf: '(Not mapped)' },
+];
+
+export const USE_CASES = [
+  {
+    id: '1147',
+    name: 'Solution Empty',
+    module: 'SolutionEmpty',
+    description: 'Solution has no Product Basket linked — cannot progress order',
+    impact: 'Revenue blockage',
+    detectionMethod: "cssdm__product_basket__c IS NULL AND CreatedBy = 'Migration User'",
+    remediationFlow: '5-step: VALIDATE → DELETE → MIGRATE → POLL → POST_UPDATE',
+    estimatedIssues: '~247 solutions',
+    color: 'red',
+  },
+  {
+    id: '1867',
+    name: 'Partial OE Data Missing',
+    module: 'PartialDataMissing',
+    description: 'Migrated services missing mandatory fields in OE attachment (ReservedNumber, BillingAccount, PICEmail, eSMSUserName)',
+    impact: 'Service activation failure',
+    detectionMethod: 'Migrated_Data__c = true AND Service_Type__c IN scope AND no Replacement',
+    remediationFlow: '4-step: FETCH → ANALYZE → PATCH → SYNC',
+    estimatedIssues: '~79 services',
+    color: 'orange',
+  },
+  {
+    id: 'failed-migration',
+    name: 'Failed Migration',
+    module: 'MigrationFailed',
+    description: "Solutions marked 'Not Migrated Successfully' — stuck in limbo",
+    impact: 'Data inconsistency',
+    detectionMethod: "csord__External_Identifier__c = 'Not Migrated Successfully'",
+    remediationFlow: 'Manual re-trigger or batch job',
+    estimatedIssues: '~326 solutions',
+    color: 'yellow',
+  },
+  {
+    id: 'billing-account',
+    name: 'Missing Billing Account',
+    module: 'BillingAccountMissing',
+    description: 'Services without Billing Account link (50.4% in production = 162K services)',
+    impact: 'Revenue leakage risk',
+    detectionMethod: 'Billing_Account__c IS NULL',
+    remediationFlow: 'Bulk link via account hierarchy',
+    estimatedIssues: '~162K services (50.4%)',
+    color: 'blue',
+  },
+];
+
+export const RUNTIME_STATS = {
+  sqlViews: 29,
+  tmfEntities: 60,
+  mappedEntities: 7,
+  restFdwTables: 8,
+  detectionViews: 10,
+  remediationViews: 3,
+  totalCsObjects: '2,500+',
+  totalRecords: '~2.4M',
+  region: 'ap-southeast-1 (Singapore)',
+  cluster: 'bssmagic-cluster',
+  service: 'bssmagic-service',
+};

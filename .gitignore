@@ -56,3 +56,22 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Large Binary Files (use Git LFS if needed)
+*.jar
+*.war
+*.ear
+*.mp4
+*.mov
+*.avi
+*.wav
+*.mp3
+*.pdf
+*.dmg
+*.gif
+
+# Build Artifacts
+*.sst
+*.so
+target/
+out/
