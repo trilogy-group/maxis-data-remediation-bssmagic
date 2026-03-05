@@ -381,6 +381,12 @@ export interface OEServiceProblem {
   remediationState: string;
   detectedAt: string;
   productDefinitionName?: string;
+  fieldsPatched: string[];
+  unresolvedFields: string[];
+  enrichmentStatus?: 'full' | 'partial' | 'none';
+  triggeredBy?: string;
+  remediationDuration?: number;
+  resolvedAt?: string;
 }
 
 function parseCharacteristic(chars: Array<{ name: string; value: string }> | undefined, name: string): string {
@@ -421,6 +427,9 @@ export async function fetchOEServiceProblems(): Promise<OEServiceProblem[]> {
       });
     }
 
+    const fieldsPatchedStr = parseCharacteristic(chars, 'fieldsPatched');
+    const durationStr = parseCharacteristic(chars, 'remediationDuration');
+
     return {
       id: sp.id as string,
       status: (sp.status as OEServiceProblem['status']) || 'pending',
@@ -437,6 +446,12 @@ export async function fetchOEServiceProblems(): Promise<OEServiceProblem[]> {
       remediationState: parseCharacteristic(chars, 'remediationState'),
       detectedAt: parseCharacteristic(chars, 'detectedAt'),
       productDefinitionName: parseCharacteristic(chars, 'productDefinitionName') || undefined,
+      fieldsPatched: fieldsPatchedStr ? fieldsPatchedStr.split(',').map(f => f.trim()) : [],
+      unresolvedFields: (() => { const s = parseCharacteristic(chars, 'unresolvedFields'); return s ? s.split(',').map(f => f.trim()) : []; })(),
+      enrichmentStatus: (parseCharacteristic(chars, 'enrichmentStatus') as OEServiceProblem['enrichmentStatus']) || undefined,
+      triggeredBy: parseCharacteristic(chars, 'triggeredBy') || undefined,
+      remediationDuration: durationStr ? parseFloat(durationStr) : undefined,
+      resolvedAt: parseCharacteristic(chars, 'resolvedAt') || undefined,
     };
   });
 }
