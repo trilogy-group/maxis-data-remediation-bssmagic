@@ -30,6 +30,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { downloadCSV } from '../../lib/csv-export';
 import {
   listWorkOrderSchedules,
   createWorkOrderSchedule,
@@ -44,6 +45,7 @@ import {
 import {
   getOrchestratorConfig,
   updateOrchestratorConfig,
+  remediateOEBatch,
   type BatchConfig,
 } from '../../services/salesforce/client';
 
@@ -190,11 +192,21 @@ const getRecurrenceLabel = (pattern: RecurrencePattern, days?: number[]) => {
 };
 
 const parseSummary = (raw: BatchJobSummary | string | undefined): BatchJobSummary => {
-  if (!raw) return { total: 0, successful: 0, failed: 0, skipped: 0, pending: 0 };
+  const empty: BatchJobSummary = { total: 0, successful: 0, failed: 0, skipped: 0, pending: 0 };
+  if (!raw) return empty;
+  let parsed: Record<string, number>;
   if (typeof raw === 'string') {
-    try { return JSON.parse(raw); } catch { return { total: 0, successful: 0, failed: 0, skipped: 0, pending: 0 }; }
+    try { parsed = JSON.parse(raw); } catch { return empty; }
+  } else {
+    parsed = raw as unknown as Record<string, number>;
   }
-  return raw;
+  return {
+    total: parsed.total ?? 0,
+    successful: (parsed.successful ?? 0) + (parsed.remediated ?? 0),
+    failed: parsed.failed ?? 0,
+    skipped: (parsed.skipped ?? 0) + (parsed.not_impacted ?? 0),
+    pending: (parsed.pending ?? 0) + (parsed.partially_remediated ?? 0) + (parsed.enrichment_unavailable ?? 0) + (parsed.attachment_corrupt ?? 0),
+  };
 };
 
 const stateConfig = (state: BatchJobState) => {
@@ -747,18 +759,39 @@ export function BatchScheduler({ category, useCase, onScheduleCreated, onImmedia
     } catch (e) { showError('Failed to delete schedule'); console.error(e); }
   };
 
+  const [runNowExecuting, setRunNowExecuting] = useState(false);
+
   const handleRunNow = async (batchSize: number = 50) => {
+    setRunNowExecuting(true);
+    const timestamp = new Date().toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    const jobName = `${useCase} Remediation · ${timestamp}`;
     try {
-      const wo = await createWorkOrder({
-        name: `Immediate ${useCase} Remediation`,
-        category,
-        requestedQuantity: batchSize,
-        x_recurrencePattern: 'once',
-        x_isRecurrent: false,
-      });
-      setJobs((prev) => [wo, ...prev]);
-      onImmediateStart?.({ batchSize });
-    } catch (e) { showError('Failed to start batch'); console.error(e); }
+      if (category === 'PartialDataMissing') {
+        const result = await remediateOEBatch({
+          max_count: batchSize,
+          job_name: jobName,
+        });
+        console.log(`[BatchScheduler] OE batch result:`, result);
+      } else {
+        const wo = await createWorkOrder({
+          name: jobName,
+          category,
+          requestedQuantity: batchSize,
+          x_recurrencePattern: 'once',
+          x_isRecurrent: false,
+        });
+        setJobs((prev) => [wo, ...prev]);
+        onImmediateStart?.({ batchSize });
+      }
+      await fetchData();
+    } catch (e) {
+      showError('Failed to start batch');
+      console.error(e);
+    } finally {
+      setRunNowExecuting(false);
+    }
   };
 
   const activeSchedules = schedules.filter((s) => s.isActive);
@@ -813,9 +846,9 @@ export function BatchScheduler({ category, useCase, onScheduleCreated, onImmedia
               className="w-16 py-1.5 px-2 text-sm text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
               title="Batch size"
             />
-            <button onClick={() => handleRunNow(runNowSize)}
-              className="px-3 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5">
-              <Play className="w-4 h-4" /> Run Now
+            <button onClick={() => handleRunNow(runNowSize)} disabled={runNowExecuting}
+              className="px-3 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-wait text-white rounded-lg flex items-center gap-1.5">
+              {runNowExecuting ? <><Loader2 className="w-4 h-4 animate-spin" /> Running...</> : <><Play className="w-4 h-4" /> Run Now</>}
             </button>
           </div>
           <button onClick={() => setShowCreateModal(true)}
@@ -959,12 +992,49 @@ export function BatchScheduler({ category, useCase, onScheduleCreated, onImmedia
 
           {/* Execution History section */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-            <button onClick={() => setExpandedSection(s => s === 'history' ? null : 'history')}
-              className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 mb-3">
-              {expandedSection === 'history' ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <BarChart3 className="w-4 h-4" />
-              Execution History ({jobs.length})
-            </button>
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => setExpandedSection(s => s === 'history' ? null : 'history')}
+                className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400">
+                {expandedSection === 'history' ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                <BarChart3 className="w-4 h-4" />
+                Execution History ({jobs.length})
+              </button>
+              {jobs.length > 0 && expandedSection === 'history' && (
+                <button
+                  onClick={() => {
+                    const parseSummary = (s: BatchJobSummary | string): BatchJobSummary | null => {
+                      if (typeof s === 'string') { try { return JSON.parse(s); } catch { return null; } }
+                      return s;
+                    };
+                    const rows = jobs.map(j => {
+                      const summary = parseSummary(j.x_summary);
+                      return {
+                        id: j.id,
+                        name: j.name,
+                        state: j.state,
+                        category: j.category,
+                        startDate: j.startDate ?? j.scheduledStartDate ?? '',
+                        completionDate: j.completionDate ?? '',
+                        requestedQuantity: j.requestedQuantity,
+                        actualQuantity: j.actualQuantity,
+                        successful: summary?.successful ?? '',
+                        failed: summary?.failed ?? '',
+                        skipped: summary?.skipped ?? '',
+                        parentScheduleId: j.x_parentScheduleId ?? '',
+                        executionNumber: j.x_executionNumber ?? '',
+                        creationDate: j.creationDate,
+                      };
+                    });
+                    const ts = new Date().toISOString().slice(0, 10);
+                    downloadCSV(rows, `batch-execution-history-${ts}.csv`);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export CSV
+                </button>
+              )}
+            </div>
 
             <AnimatePresence>
               {expandedSection === 'history' && (
