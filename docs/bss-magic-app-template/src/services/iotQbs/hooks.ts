@@ -9,11 +9,13 @@ import {
 } from '@tanstack/react-query';
 import {
   detectIoTQBSOrchestrations,
+  validateIoTQBSOrchestration,
   remediateIoTQBSOrchestration,
   remediateIoTQBSBatch,
 } from './client';
 import type {
   IoTQBSDetectResponse,
+  IoTQBSValidateResponse,
   IoTQBSSingleRemediateResponse,
   IoTQBSBatchRemediateResponse,
 } from '../../types/iot-qbs';
@@ -21,6 +23,7 @@ import type {
 export const iotQbsKeys = {
   all: ['iot-qbs'] as const,
   detect: () => [...iotQbsKeys.all, 'detect'] as const,
+  validate: (id: string) => [...iotQbsKeys.all, 'validate', id] as const,
   remediate: (id: string) => [...iotQbsKeys.all, 'remediate', id] as const,
 };
 
@@ -35,6 +38,17 @@ export function useIoTQBSDetect(): UseMutationResult<
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: iotQbsKeys.all });
     },
+  });
+}
+
+export function useIoTQBSValidate(): UseMutationResult<
+  IoTQBSValidateResponse,
+  Error,
+  { orchestrationProcessId: string }
+> {
+  return useMutation({
+    mutationFn: ({ orchestrationProcessId }) =>
+      validateIoTQBSOrchestration(orchestrationProcessId),
   });
 }
 

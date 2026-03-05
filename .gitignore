@@ -73,10 +73,18 @@ temp/
 *.psd
 *.eps
 *.ai
-docs/**/assets/img/*.png
-!docs/**/assets/img/*-icon*.png
-!docs/**/assets/img/*-logo*.png
 maxis*.json
+
+# Large GIFs and animated logos (>500KB)
+docs/**/assets/img/*AnimatedLogo*.gif
+docs/**/assets/img/*-logo-*-*.gif
+docs/**/assets/img/bss-magic-logo*.gif
+docs/**/assets/img/Animated/*.gif
+
+# Large PNGs
+docs/**/assets/img/*.png
+!docs/**/assets/img/totogi-logo-rgb-w600px.png
+!docs/**/assets/img/*-icon*.png
 
 # Build Artifacts
 *.sst

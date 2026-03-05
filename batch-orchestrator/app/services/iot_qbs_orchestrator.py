@@ -125,11 +125,11 @@ class IoTQBSOrchestrator:
             self._client = None
 
     # -------------------------------------------------------------------------
-    # Detection: find held IoT orchestrations via SOQL
+    # Step 1: Discovery -- SOQL only, fast (~2s)
     # -------------------------------------------------------------------------
 
-    def detect_held_orchestrations(self, max_count: int = 50) -> list[dict]:
-        """Query Salesforce for held IoT orchestrations and enrich with API 1 data."""
+    def discover_held_orchestrations(self, max_count: int = 50) -> list[dict]:
+        """Query Salesforce for held IoT orchestrations (SOQL only, no Apex enrichment)."""
         client = self._ensure_auth()
 
         soql = DETECTION_SOQL.format(limit=max_count)
@@ -139,46 +139,36 @@ class IoTQBSOrchestrator:
         records = resp.json().get("records", [])
         logger.info(f"Detection found {len(records)} held orchestrations")
 
-        results = []
-        for rec in records:
-            orch_id = rec.get("Id", "")
-            name = rec.get("Name", "")
-            order_id = rec.get("Order__c", "")
-            created = rec.get("CreatedDate", "")
+        return [
+            {
+                "orchestration_process_id": rec.get("Id", ""),
+                "name": rec.get("Name", ""),
+                "order_id": rec.get("Order__c", ""),
+                "created_date": rec.get("CreatedDate", ""),
+            }
+            for rec in records
+        ]
 
-            summary = {
+    # -------------------------------------------------------------------------
+    # Step 2: Validation -- Apex API 1 + 2 + truth table + safety (~5-10s)
+    # -------------------------------------------------------------------------
+
+    def validate_orchestration(self, orch_id: str) -> dict:
+        """Enrich and validate a single orchestration via Apex APIs 1+2."""
+        client = self._ensure_auth()
+
+        api1 = self._call_api1(client, orch_id)
+        if not api1.get("success"):
+            return {
                 "orchestration_process_id": orch_id,
-                "name": name,
-                "order_id": order_id,
-                "created_date": created,
                 "pc_count": 0,
                 "service_count": 0,
                 "mismatch_count": 0,
                 "is_safe": False,
+                "findings": [],
+                "safety_check": None,
             }
 
-            try:
-                api1 = self._call_api1(client, orch_id)
-                if api1.get("success"):
-                    pcs = api1.get("productConfigurations", [])
-                    services = api1.get("services", [])
-                    summary["pc_count"] = len(pcs)
-                    summary["service_count"] = len(services)
-
-                    quick = self._quick_validate(client, orch_id, api1)
-                    summary["mismatch_count"] = quick["mismatch_count"]
-                    summary["is_safe"] = quick["is_safe"]
-            except Exception as e:
-                logger.warning(f"API 1 enrichment failed for {orch_id}: {e}")
-
-            results.append(summary)
-
-        return results
-
-    def _quick_validate(
-        self, client: httpx.Client, orch_id: str, api1: dict
-    ) -> dict:
-        """Run quick validation (API 2 + truth table) to count mismatches."""
         pcs = api1.get("productConfigurations", [])
         services = api1.get("services", [])
 
@@ -205,8 +195,13 @@ class IoTQBSOrchestrator:
         )
 
         return {
+            "orchestration_process_id": orch_id,
+            "pc_count": len(pcs),
+            "service_count": len(services),
             "mismatch_count": len(findings),
             "is_safe": safety.is_safe,
+            "findings": [f.model_dump() for f in findings],
+            "safety_check": safety.model_dump(),
         }
 
     # -------------------------------------------------------------------------

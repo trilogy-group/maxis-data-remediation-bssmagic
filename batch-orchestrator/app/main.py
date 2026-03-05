@@ -614,6 +614,8 @@ async def oe_remediate_single(
 from .models.schemas import (
     IoTQBSDetectRequest,
     IoTQBSDetectResponse,
+    IoTQBSDiscoveredOrchestration,
+    IoTQBSValidateResponse,
     IoTQBSOrchestrationSummary,
     IoTQBSSingleRemediateRequest,
     IoTQBSSingleRemediateResponse,
@@ -628,24 +630,51 @@ from .services.iot_qbs_orchestrator import IoTQBSOrchestrator
 @router.post("/iot-qbs/detect", response_model=IoTQBSDetectResponse)
 async def iot_qbs_detect(request: IoTQBSDetectRequest = IoTQBSDetectRequest()):
     """
-    Discover held IoT orchestrations via Salesforce SOQL + Apex API 1.
+    Discover held IoT orchestrations via Salesforce SOQL.
 
-    For each held orchestration, calls API 1 (discovery) and API 2 (per-PC data)
-    to get a quick mismatch count and safety check.
+    Returns a lightweight list (id, name, order, date) without Apex enrichment.
+    Use /iot-qbs/validate/{id} to enrich individual orchestrations.
     """
     orchestrator = IoTQBSOrchestrator()
     try:
         raw = await asyncio.to_thread(
-            orchestrator.detect_held_orchestrations, request.max_count
+            orchestrator.discover_held_orchestrations, request.max_count
         )
-        summaries = [IoTQBSOrchestrationSummary(**r) for r in raw]
+        items = [IoTQBSDiscoveredOrchestration(**r) for r in raw]
         return IoTQBSDetectResponse(
-            orchestrations=summaries,
-            total_found=len(summaries),
+            orchestrations=items,
+            total_found=len(items),
         )
     except Exception as e:
         logger.error(f"IoT QBS detection failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Detection failed: {e}")
+    finally:
+        orchestrator.close()
+
+
+@router.post(
+    "/iot-qbs/validate/{orchestration_process_id}",
+    response_model=IoTQBSValidateResponse,
+)
+async def iot_qbs_validate(orchestration_process_id: str):
+    """
+    Validate a single orchestration by calling Apex APIs 1+2.
+
+    Returns enriched data: PC count, service count, mismatch count,
+    safety check, and individual validation findings.
+    """
+    if not orchestration_process_id or len(orchestration_process_id) < 10:
+        raise HTTPException(status_code=400, detail="Invalid orchestration process ID")
+
+    orchestrator = IoTQBSOrchestrator()
+    try:
+        result = await asyncio.to_thread(
+            orchestrator.validate_orchestration, orchestration_process_id
+        )
+        return IoTQBSValidateResponse(**result)
+    except Exception as e:
+        logger.error(f"IoT QBS validation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Validation failed: {e}")
     finally:
         orchestrator.close()
 
@@ -711,7 +740,7 @@ async def iot_qbs_remediate_batch(
 
         if not orch_ids:
             raw = await asyncio.to_thread(
-                orchestrator.detect_held_orchestrations,
+                orchestrator.discover_held_orchestrations,
                 request.max_count or 50,
             )
             orch_ids = [r["orchestration_process_id"] for r in raw]

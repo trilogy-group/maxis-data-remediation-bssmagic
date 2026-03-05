@@ -7,6 +7,7 @@
 
 import type {
   IoTQBSDetectResponse,
+  IoTQBSValidateResponse,
   IoTQBSSingleRemediateResponse,
   IoTQBSBatchRemediateResponse,
 } from '../../types/iot-qbs';
@@ -46,6 +47,15 @@ export async function detectIoTQBSOrchestrations(
     method: 'POST',
     body: JSON.stringify({ max_count: opts.max_count ?? 50 }),
   });
+}
+
+export async function validateIoTQBSOrchestration(
+  orchestrationProcessId: string,
+): Promise<IoTQBSValidateResponse> {
+  return orchestratorFetch<IoTQBSValidateResponse>(
+    `/iot-qbs/validate/${encodeURIComponent(orchestrationProcessId)}`,
+    { method: 'POST' },
+  );
 }
 
 export async function remediateIoTQBSOrchestration(

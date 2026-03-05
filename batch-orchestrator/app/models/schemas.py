@@ -381,16 +381,21 @@ class IoTQBSBatchSummary(BaseModel):
 # =============================================================================
 
 
-class IoTQBSOrchestrationSummary(BaseModel):
-    """Summary of a single held orchestration from the detect endpoint."""
+class IoTQBSDiscoveredOrchestration(BaseModel):
+    """Lightweight orchestration record from SOQL detection (no Apex enrichment)."""
     orchestration_process_id: str
     name: str = ""
     order_id: str = ""
     created_date: str = ""
+
+
+class IoTQBSOrchestrationSummary(IoTQBSDiscoveredOrchestration):
+    """Enriched orchestration after validation via Apex APIs 1+2."""
     pc_count: int = 0
     service_count: int = 0
     mismatch_count: int = 0
     is_safe: bool = False
+    findings: list[ValidationFinding] = Field(default_factory=list)
 
 
 class IoTQBSDetectRequest(BaseModel):
@@ -399,9 +404,20 @@ class IoTQBSDetectRequest(BaseModel):
 
 
 class IoTQBSDetectResponse(BaseModel):
-    """Response from the IoT QBS detect endpoint."""
-    orchestrations: list[IoTQBSOrchestrationSummary] = Field(default_factory=list)
+    """Response from the IoT QBS detect endpoint (SOQL-only, lightweight)."""
+    orchestrations: list[IoTQBSDiscoveredOrchestration] = Field(default_factory=list)
     total_found: int = 0
+
+
+class IoTQBSValidateResponse(BaseModel):
+    """Response from validating a single orchestration via Apex APIs."""
+    orchestration_process_id: str
+    pc_count: int = 0
+    service_count: int = 0
+    mismatch_count: int = 0
+    is_safe: bool = False
+    findings: list[ValidationFinding] = Field(default_factory=list)
+    safety_check: Optional[IoTQBSSafetyCheck] = None
 
 
 class IoTQBSSingleRemediateRequest(BaseModel):

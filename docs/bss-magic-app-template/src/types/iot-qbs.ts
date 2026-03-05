@@ -56,15 +56,29 @@ export interface IoTQBSSafetyCheck {
   is_safe: boolean;
 }
 
-export interface IoTQBSOrchestrationSummary {
+export interface IoTQBSDiscoveredOrchestration {
   orchestration_process_id: string;
   name: string;
   order_id: string;
   created_date: string;
+}
+
+export interface IoTQBSOrchestrationSummary extends IoTQBSDiscoveredOrchestration {
   pc_count: number;
   service_count: number;
   mismatch_count: number;
   is_safe: boolean;
+  findings: ValidationFinding[];
+}
+
+export interface IoTQBSValidateResponse {
+  orchestration_process_id: string;
+  pc_count: number;
+  service_count: number;
+  mismatch_count: number;
+  is_safe: boolean;
+  findings: ValidationFinding[];
+  safety_check: IoTQBSSafetyCheck | null;
 }
 
 export interface IoTQBSResult {
@@ -91,7 +105,7 @@ export interface IoTQBSBatchSummary {
 }
 
 export interface IoTQBSDetectResponse {
-  orchestrations: IoTQBSOrchestrationSummary[];
+  orchestrations: IoTQBSDiscoveredOrchestration[];
   total_found: number;
 }
 

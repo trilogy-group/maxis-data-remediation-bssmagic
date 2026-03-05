@@ -2,20 +2,30 @@
  * Module 3: IoT QBS Remediator
  *
  * Two-table layout following the 1147/1867 module pattern:
- *   1. Detection table  - held IoT orchestrations from Salesforce
+ *   1. Detection table  - held IoT orchestrations from Salesforce (lightweight SOQL)
  *   2. Remediation table - results of remediation attempts
+ *
+ * Detection returns a lightweight list; each row can be individually "Validated"
+ * (enriched via Apex APIs 1+2) before remediation actions become available.
  */
 
 import { useState, useCallback } from 'react';
-import { Search, RefreshCw, Play, Zap, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, Shield, ShieldAlert } from 'lucide-react';
+import { Search, RefreshCw, Play, Zap, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertTriangle, Clock, Shield, ShieldAlert, Loader2 } from 'lucide-react';
 import { Spinner, CardLoader } from '../Dashboard/Loader';
-import { useIoTQBSDetect, useIoTQBSRemediateSingle } from '../../services/iotQbs/hooks';
+import { useIoTQBSDetect, useIoTQBSValidate, useIoTQBSRemediateSingle } from '../../services/iotQbs/hooks';
 import type {
+  IoTQBSDiscoveredOrchestration,
   IoTQBSOrchestrationSummary,
+  IoTQBSValidateResponse,
   IoTQBSResult,
   IoTQBSRemediationState,
 } from '../../types/iot-qbs';
 import { QBS_STATE_DESCRIPTIONS, QBS_STATE_PROGRESS } from '../../types/iot-qbs';
+
+type EnrichedOrch = IoTQBSDiscoveredOrchestration & Partial<IoTQBSValidateResponse> & {
+  _validated?: boolean;
+  _validating?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // State badge helper
@@ -48,15 +58,18 @@ function StateBadge({ state }: { state: IoTQBSRemediationState }) {
 function DetectionRow({
   orch,
   isRemediating,
+  onValidate,
   onRemediate,
   onDryRun,
 }: {
-  orch: IoTQBSOrchestrationSummary;
+  orch: EnrichedOrch;
   isRemediating: boolean;
+  onValidate: (id: string) => void;
   onRemediate: (id: string) => void;
   onDryRun: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const validated = orch._validated === true;
 
   const created = orch.created_date
     ? new Date(orch.created_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -78,10 +91,16 @@ function DetectionRow({
           {orch.name || '-'}
         </td>
         <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">{created}</td>
-        <td className="px-3 py-3 text-sm text-center">{orch.pc_count}</td>
-        <td className="px-3 py-3 text-sm text-center">{orch.service_count}</td>
         <td className="px-3 py-3 text-sm text-center">
-          {orch.mismatch_count > 0 ? (
+          {validated ? orch.pc_count : <span className="text-gray-300 dark:text-gray-600">--</span>}
+        </td>
+        <td className="px-3 py-3 text-sm text-center">
+          {validated ? orch.service_count : <span className="text-gray-300 dark:text-gray-600">--</span>}
+        </td>
+        <td className="px-3 py-3 text-sm text-center">
+          {!validated ? (
+            <span className="text-gray-300 dark:text-gray-600">--</span>
+          ) : (orch.mismatch_count ?? 0) > 0 ? (
             <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
               <AlertTriangle className="h-3.5 w-3.5" />
               {orch.mismatch_count}
@@ -91,7 +110,9 @@ function DetectionRow({
           )}
         </td>
         <td className="px-3 py-3 text-sm text-center">
-          {orch.is_safe ? (
+          {!validated ? (
+            <span className="text-gray-300 dark:text-gray-600">--</span>
+          ) : orch.is_safe ? (
             <Shield className="h-4 w-4 text-green-500 mx-auto" />
           ) : (
             <ShieldAlert className="h-4 w-4 text-red-500 mx-auto" />
@@ -99,21 +120,34 @@ function DetectionRow({
         </td>
         <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-2 justify-end">
-            <button
-              onClick={() => onDryRun(orch.orchestration_process_id)}
-              disabled={isRemediating}
-              className="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-            >
-              Dry Run
-            </button>
-            <button
-              onClick={() => onRemediate(orch.orchestration_process_id)}
-              disabled={isRemediating || !orch.is_safe}
-              className="px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-            >
-              {isRemediating && <Spinner size="sm" className="text-white" />}
-              Remediate
-            </button>
+            {!validated ? (
+              <button
+                onClick={() => onValidate(orch.orchestration_process_id)}
+                disabled={orch._validating}
+                className="px-2.5 py-1.5 text-xs font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+              >
+                {orch._validating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                {orch._validating ? 'Validating...' : 'Validate'}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => onDryRun(orch.orchestration_process_id)}
+                  disabled={isRemediating}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                >
+                  Dry Run
+                </button>
+                <button
+                  onClick={() => onRemediate(orch.orchestration_process_id)}
+                  disabled={isRemediating || !orch.is_safe}
+                  className="px-2.5 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                >
+                  {isRemediating && <Spinner size="sm" className="text-white" />}
+                  Remediate
+                </button>
+              </>
+            )}
           </div>
         </td>
       </tr>
@@ -124,9 +158,28 @@ function DetectionRow({
             <div className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
               <div><span className="font-medium">Orchestration ID:</span> {orch.orchestration_process_id}</div>
               <div><span className="font-medium">Order ID:</span> {orch.order_id || '-'}</div>
-              <div><span className="font-medium">Product Configurations:</span> {orch.pc_count}</div>
-              <div><span className="font-medium">Services:</span> {orch.service_count} ({orch.mismatch_count} mismatched)</div>
-              <div><span className="font-medium">Safe to patch:</span> {orch.is_safe ? 'Yes' : 'No -- review safety check'}</div>
+              {validated ? (
+                <>
+                  <div><span className="font-medium">Product Configurations:</span> {orch.pc_count}</div>
+                  <div><span className="font-medium">Services:</span> {orch.service_count} ({orch.mismatch_count ?? 0} mismatched)</div>
+                  <div><span className="font-medium">Safe to patch:</span> {orch.is_safe ? 'Yes' : 'No -- review safety check'}</div>
+                  {(orch.findings?.length ?? 0) > 0 && (
+                    <div className="mt-2">
+                      <div className="font-medium mb-1">Mismatches:</div>
+                      <div className="grid gap-0.5 font-mono">
+                        {orch.findings!.slice(0, 8).map((f) => (
+                          <div key={f.service_id}>
+                            SVC ...{f.service_id.slice(-8)} | SIM ...{f.sim_serial_number?.slice(-6) ?? '?'} | {f.current_pc_id?.slice(-4)} -&gt; {f.correct_pc_id?.slice(-4)}
+                          </div>
+                        ))}
+                        {orch.findings!.length > 8 && <div>... and {orch.findings!.length - 8} more</div>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="italic text-gray-400">Click "Validate" to load PC/service details from Salesforce Apex APIs</div>
+              )}
             </div>
           </td>
         </tr>
@@ -141,7 +194,6 @@ function DetectionRow({
 
 function ResultRow({ result }: { result: IoTQBSResult }) {
   const [expanded, setExpanded] = useState(false);
-
   const isSuccess = result.final_state === 'RELEASED';
 
   return (
@@ -177,7 +229,6 @@ function ResultRow({ result }: { result: IoTQBSResult }) {
         <tr className="bg-gray-50/50 dark:bg-gray-800/30">
           <td colSpan={7} className="px-6 py-4">
             <div className="space-y-3">
-              {/* State Timeline */}
               <div>
                 <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">State Timeline</div>
                 <div className="flex flex-wrap gap-1">
@@ -190,7 +241,6 @@ function ResultRow({ result }: { result: IoTQBSResult }) {
                 </div>
               </div>
 
-              {/* Findings */}
               {result.findings.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -206,14 +256,12 @@ function ResultRow({ result }: { result: IoTQBSResult }) {
                 </div>
               )}
 
-              {/* Error */}
               {result.error && (
                 <div className="text-xs text-red-600 dark:text-red-400">
                   <span className="font-semibold">Error:</span> {result.error}
                 </div>
               )}
 
-              {/* Safety Check */}
               {result.safety_check && !result.safety_check.is_safe && (
                 <div className="text-xs text-amber-600 dark:text-amber-400">
                   <span className="font-semibold">Safety Issues:</span>{' '}
@@ -235,23 +283,80 @@ function ResultRow({ result }: { result: IoTQBSResult }) {
 // ---------------------------------------------------------------------------
 
 export function IoTQBSModule() {
-  const [detectedOrchestrations, setDetectedOrchestrations] = useState<IoTQBSOrchestrationSummary[]>([]);
+  const [orchestrations, setOrchestrations] = useState<EnrichedOrch[]>([]);
   const [remediationResults, setRemediationResults] = useState<IoTQBSResult[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastDetected, setLastDetected] = useState<string | null>(null);
   const [activeRemediationId, setActiveRemediationId] = useState<string | null>(null);
+  const [isValidatingAll, setIsValidatingAll] = useState(false);
 
   const detectMutation = useIoTQBSDetect();
+  const validateMutation = useIoTQBSValidate();
   const remediateMutation = useIoTQBSRemediateSingle();
 
   const handleDetect = useCallback(() => {
     detectMutation.mutate({ max_count: 50 }, {
       onSuccess: (data) => {
-        setDetectedOrchestrations(data.orchestrations);
+        setOrchestrations(data.orchestrations.map((o) => ({ ...o })));
         setLastDetected(new Date().toLocaleTimeString());
       },
     });
   }, [detectMutation]);
+
+  const applyValidation = useCallback((orchId: string, result: IoTQBSValidateResponse) => {
+    setOrchestrations((prev) =>
+      prev.map((o) =>
+        o.orchestration_process_id === orchId
+          ? { ...o, ...result, _validated: true, _validating: false }
+          : o,
+      ),
+    );
+  }, []);
+
+  const handleValidate = useCallback((orchId: string) => {
+    setOrchestrations((prev) =>
+      prev.map((o) =>
+        o.orchestration_process_id === orchId ? { ...o, _validating: true } : o,
+      ),
+    );
+    validateMutation.mutate(
+      { orchestrationProcessId: orchId },
+      {
+        onSuccess: (data) => applyValidation(orchId, data),
+        onError: () => {
+          setOrchestrations((prev) =>
+            prev.map((o) =>
+              o.orchestration_process_id === orchId ? { ...o, _validating: false } : o,
+            ),
+          );
+        },
+      },
+    );
+  }, [validateMutation, applyValidation]);
+
+  const handleValidateAll = useCallback(async () => {
+    const unvalidated = orchestrations.filter((o) => !o._validated && !o._validating);
+    if (!unvalidated.length) return;
+
+    setIsValidatingAll(true);
+    setOrchestrations((prev) => prev.map((o) => (o._validated ? o : { ...o, _validating: true })));
+
+    for (const orch of unvalidated) {
+      try {
+        const result = await validateIoTQBSOrchestrationDirect(orch.orchestration_process_id);
+        applyValidation(orch.orchestration_process_id, result);
+      } catch {
+        setOrchestrations((prev) =>
+          prev.map((o) =>
+            o.orchestration_process_id === orch.orchestration_process_id
+              ? { ...o, _validating: false }
+              : o,
+          ),
+        );
+      }
+    }
+    setIsValidatingAll(false);
+  }, [orchestrations, applyValidation]);
 
   const handleRemediate = useCallback((orchId: string) => {
     setActiveRemediationId(orchId);
@@ -281,15 +386,14 @@ export function IoTQBSModule() {
     );
   }, [remediateMutation]);
 
-  // Stats
-  const totalDetected = detectedOrchestrations.length;
-  const safeToPatch = detectedOrchestrations.filter((o) => o.is_safe && o.mismatch_count > 0).length;
-  const totalMismatches = detectedOrchestrations.reduce((s, o) => s + o.mismatch_count, 0);
+  const totalDetected = orchestrations.length;
+  const validatedOrchs = orchestrations.filter((o) => o._validated);
+  const safeToPatch = validatedOrchs.filter((o) => o.is_safe && (o.mismatch_count ?? 0) > 0).length;
+  const totalMismatches = validatedOrchs.reduce((s, o) => s + (o.mismatch_count ?? 0), 0);
   const released = remediationResults.filter((r) => r.final_state === 'RELEASED').length;
   const failed = remediationResults.filter((r) => r.final_state === 'FAILED').length;
 
-  // Search filter
-  const filteredOrchestrations = detectedOrchestrations.filter((o) => {
+  const filteredOrchestrations = orchestrations.filter((o) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -344,12 +448,12 @@ export function IoTQBSModule() {
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Held Orchestrations</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{totalMismatches}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Mismatches</div>
+          <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{validatedOrchs.length}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Validated</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{safeToPatch}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Safe to Patch</div>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{totalMismatches}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Mismatches</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">{released}</div>
@@ -383,6 +487,16 @@ export function IoTQBSModule() {
             Detected Orchestrations ({filteredOrchestrations.length})
           </h3>
           <div className="flex items-center gap-2">
+            {totalDetected > 0 && validatedOrchs.length < totalDetected && (
+              <button
+                onClick={handleValidateAll}
+                disabled={isValidatingAll}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+              >
+                {isValidatingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                {isValidatingAll ? 'Validating...' : 'Validate All'}
+              </button>
+            )}
             <div className="relative">
               <Search className="h-4 w-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
@@ -396,7 +510,7 @@ export function IoTQBSModule() {
           </div>
         </div>
 
-        {detectMutation.isPending && !detectedOrchestrations.length ? (
+        {detectMutation.isPending && !orchestrations.length ? (
           <CardLoader message="Scanning Salesforce for held IoT orchestrations..." />
         ) : filteredOrchestrations.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -426,6 +540,7 @@ export function IoTQBSModule() {
                     key={orch.orchestration_process_id}
                     orch={orch}
                     isRemediating={activeRemediationId === orch.orchestration_process_id}
+                    onValidate={handleValidate}
                     onRemediate={handleRemediate}
                     onDryRun={handleDryRun}
                   />
@@ -468,4 +583,9 @@ export function IoTQBSModule() {
       )}
     </div>
   );
+}
+
+async function validateIoTQBSOrchestrationDirect(orchId: string): Promise<IoTQBSValidateResponse> {
+  const { validateIoTQBSOrchestration } = await import('../../services/iotQbs/client');
+  return validateIoTQBSOrchestration(orchId);
 }
