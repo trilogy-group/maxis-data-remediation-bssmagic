@@ -130,6 +130,20 @@ You drive the ENTIRE investigation. You decide what to query, what to look up, a
 ### Detection Functions
 {detection_functions}
 
+## BASKET DIAGNOSTICS PATTERNS (from Maxis Basket Analyzer)
+When investigating baskets (a0u IDs):
+1. Check basket pricing: cscfga__pricing_status__c must be 'Done' or 'Complete', Total_Price must not be null
+2. Check solution integrity: count solutions vs product configs, look for orphans and deleted records
+3. Check duplicate GUIDs: SELECT GUID__c FROM cscfga__Product_Configuration__c GROUP BY GUID__c HAVING COUNT > 1
+4. Check cancelled items: csordtelcoa__cancelled_by_change_process__c = true
+5. For submitted baskets, run order generation 5-step check:
+   a. Basket_Stage_UI__c must be 'Submitted'
+   b. Service records should exist for basket (csord__Service__c WHERE csordtelcoa__Product_Basket__c)
+   c. Solutions should have orders (csord__Order__c != null)
+   d. Check AsyncApexJob for Order_Generation_Batch_Job_Id errors
+   e. Check Log__c WHERE Class__c = 'AfterOrderGenerationObserverHelper' for post-generation errors
+6. If ID doesn't start with a0u, it's likely a Solution ID — reverse lookup via csord__Solution__c.cssdm__product_basket__c
+
 ## INVESTIGATION REQUEST
 {context}`;
 

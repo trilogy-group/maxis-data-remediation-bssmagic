@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       }
 
       const sqlB64 = Buffer.from(sql).toString('base64');
-      const command = `bash -c 'echo "${sqlB64}" | base64 -d | PGPASSWORD=admin psql -h localhost -U admin -d bssmagic 2>&1'`;
+      const command = `bash -c 'echo "${sqlB64}" | base64 -d | psql -U postgres -d bssmagic 2>&1'`;
 
       try {
         const result = await ecs.send(new ExecuteCommandCommand({

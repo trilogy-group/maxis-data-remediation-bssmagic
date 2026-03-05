@@ -172,6 +172,85 @@ const SEMANTIC_TAGS: SemanticTag[] = [
       { id: 'x-xf-1', text: 'Detection flags exposed as custom x_* fields (x_has1867Issue, x_migratedData, x_billingAccountId, etc.) on entity views. Enables efficient SOQL-pushdown filtering via the TMF API.', tags: ['Detection', 'x_fields', 'FDW'] },
     ],
   },
+
+  // === BASKET ANALYZER DIAGNOSTICS ===
+
+  {
+    id: 'concern-basket-pricing', name: 'Basket Pricing Validation', category: 'CONCERN',
+    rules: [
+      { id: 'ba-1', text: "If cscfga__Basket_Status__c = 'Req Update' OR cscfga__pricing_status__c != 'Done'/'Complete' OR cscfga__Total_Price__c IS NULL, THEN basket has incomplete pricing. This blocks order submission. SOQL: SELECT Id, Name, cscfga__Basket_Status__c, csordtelcoa__Basket_Stage__c, cscfga__pricing_status__c, cscfga__Total_Price__c, cscfga__total_contract_value__c FROM cscfga__Product_Basket__c WHERE Id = '{id}'", tags: ['Basket', 'Pricing', 'Diagnostics'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'concern-solution-integrity', name: 'Solution Configuration Integrity', category: 'CONCERN',
+    rules: [
+      { id: 'ba-2', text: "If Solution count != Product Configuration count for a basket, OR solutions exist without configurations, OR configurations exist without valid solution association, THEN solution-config integrity is broken. Check: (1) Solutions WHERE cssdm__product_basket__c = '{id}', (2) Product_Configuration WHERE basket_id AND Name LIKE '%Solution%'. Compare cssdm__solution_association__c linkage. Also check for IsDeleted = true ghost records.", tags: ['Solution', 'Configuration', 'Integrity'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'concern-duplicate-guids', name: 'Duplicate Configuration GUIDs', category: 'CONCERN',
+    rules: [
+      { id: 'ba-3', text: "If multiple Product_Configurations in a basket share the same GUID__c value, THEN duplicate GUIDs exist which cause cloning errors. SOQL: SELECT Name, GUID__c FROM cscfga__Product_Configuration__c WHERE cscfga__Product_Basket__c = '{id}'. Group by GUID__c, flag any with count > 1.", tags: ['GUID', 'Duplicate', 'Configuration'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'concern-cancelled-items', name: 'Cancelled Items in Basket', category: 'CONCERN',
+    rules: [
+      { id: 'ba-4', text: "If csordtelcoa__cancelled_by_change_process__c = true on Product_Configurations OR Services in a basket, THEN cancelled items remain and may block processing. Check both cscfga__Product_Configuration__c and csord__Service__c WHERE csordtelcoa__Product_Basket__c = '{id}'.", tags: ['Cancelled', 'MACD', 'ChangeProcess'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'concern-order-generation', name: 'Order Generation Process (7-Step)', category: 'CONCERN',
+    rules: [
+      { id: 'ba-5a', text: "Step A: Basket must have Basket_Stage_UI__c = 'Submitted' for order generation to apply. Also check csordtelcoa__Synchronised_with_Opportunity__c and csordtelcoa__Order_Generation_Batch_Job_Id__c.", tags: ['OrderGeneration', 'Basket', 'Stage'], source: 'Basket Analyzer' },
+      { id: 'ba-5b', text: "Step B: Query csord__Service__c WHERE csordtelcoa__Product_Basket__c = '{id}'. If zero service records, order generation hasn't progressed.", tags: ['OrderGeneration', 'Service', 'Check'], source: 'Basket Analyzer' },
+      { id: 'ba-5c', text: "Step C: Query csord__Solution__c WHERE basket_id AND csord__Order__c != ''. Compare solutions-with-orders count vs total solutions. Zero orders on submitted basket = order generation failed.", tags: ['OrderGeneration', 'Solution', 'Order'], source: 'Basket Analyzer' },
+      { id: 'ba-5d', text: "Step D: If Order_Generation_Batch_Job_Id__c exists, check AsyncApexJob: SELECT Status, NumberOfErrors FROM AsyncApexJob WHERE Id = '{job_id}'. Failed status or NumberOfErrors > 0 = Apex error.", tags: ['OrderGeneration', 'ApexJob', 'Error'], source: 'Basket Analyzer' },
+      { id: 'ba-5e', text: "Step E: If no Apex errors, check application logs: SELECT FROM Log__c WHERE Class__c = 'AfterOrderGenerationObserverHelper' AND createddate = today ORDER BY CreatedDate DESC LIMIT 10. Error-level or exception logs indicate post-generation failures.", tags: ['OrderGeneration', 'Logs', 'Observer'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'concern-replaced-solution-mismatch', name: 'Replaced Solution Mismatch (AN11)', category: 'CONCERN',
+    rules: [
+      { id: 'ba-6', text: "Check for product configurations where the solution association's replaced solution differs from the replaced product configuration's solution association. This AN11 pattern indicates MACD replacement chain inconsistency.", tags: ['MACD', 'Replacement', 'AN11'], source: 'Basket Analyzer' },
+    ],
+  },
+
+  // === BASKET ANALYZER SKILLS ===
+
+  {
+    id: 'skill-basket-diagnostics', name: 'Basket Diagnostics Workflow', category: 'SKILL',
+    rules: [
+      { id: 'ba-s1', text: "Full basket investigation: (1) Extract basket_id from support ticket, (2) Run 9 diagnostic SOQL checks (pricing, solution integrity, duplicate GUIDs, cancelled items, order generation 5-step), (3) Search CloudWatch logs for correlation IDs and errors, (4) Generate structured report with issue areas and remediation recommendations.", tags: ['Diagnostics', 'Workflow', 'Support'], source: 'Basket Analyzer' },
+    ],
+  },
+  {
+    id: 'skill-cloudwatch-investigation', name: 'CloudWatch Log Investigation', category: 'SKILL',
+    rules: [
+      { id: 'ba-s2', text: "For basket issues: (1) Accept basket_id, (2) Search CloudWatch logs at /aws/ecs/SolutionManagementServiceStack-prod for entries containing the basket ID, (3) Identify correlation IDs from log entries, (4) Scan for error messages, failure statuses, exceptions, stack traces, timeout indicators, and retry patterns, (5) Summarize findings with potential root cause.", tags: ['CloudWatch', 'Logs', 'Investigation'], source: 'Basket Analyzer' },
+    ],
+  },
+
+  // === EXTERNAL SYSTEM DOMAINS ===
+
+  {
+    id: 'domain-kayako', name: 'Kayako (Support Tickets)', category: 'DOMAIN',
+    rules: [
+      { id: 'ba-d1', text: "Kayako at central-supportdesk.kayako.com provides support ticket management. Available operations: Get Ticket, Get Conversations, Get Timeline, Get All Ticket Data, Get Ticket Triage, Reply to Ticket. Basket IDs are extracted from ticket triage details (always start with a0u). If no basket ID found, try solution ID and reverse-lookup.", tags: ['Kayako', 'Support', 'Tickets'] },
+    ],
+  },
+  {
+    id: 'domain-cloudwatch', name: 'AWS CloudWatch (Runtime Logs)', category: 'DOMAIN',
+    rules: [
+      { id: 'ba-d2', text: "CloudWatch logs at log group /aws/ecs/SolutionManagementServiceStack-prod-apac provide runtime execution traces. Accessed via cross-account role arn:aws:iam::861276110329:role/CrossAccountCloudWatchAccess. Used to trace basket processing errors, order generation failures, and Apex job execution issues.", tags: ['CloudWatch', 'AWS', 'Logs'] },
+    ],
+  },
+  {
+    id: 'domain-sm-database', name: 'Solution Management Database', category: 'DOMAIN',
+    rules: [
+      { id: 'ba-d3', text: "The SM (Solution Management) Heroku PostgreSQL database stores migrated solution data, product basket configurations, and order snapshots. Accessed via the Salesforce API component for basket diagnostics, failed basket retrieval, and snapshot analysis. Key entities: baskets, solutions, configurations, orders.", tags: ['SM', 'Database', 'Heroku'] },
+    ],
+  },
 ];
 
 export default function SemanticModelPage() {

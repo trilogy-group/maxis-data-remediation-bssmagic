@@ -1,0 +1,38 @@
+{
+  "name": "maxis-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@aws-sdk/client-ecs": "^3.1000.0",
+    "@aws-sdk/client-ssm": "^3.1000.0",
+    "@tanstack/react-query": "^5.90.21",
+    "@types/jsforce": "^1.11.6",
+    "clsx": "^2.1.1",
+    "iron-session": "^8.0.4",
+    "jsforce": "^3.10.14",
+    "lucide-react": "^0.575.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.5.0",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

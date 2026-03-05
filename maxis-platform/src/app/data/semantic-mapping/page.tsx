@@ -132,7 +132,7 @@ export default function SemanticMappingPage() {
                     )}
                     {isExpanded && (
                       <div className="mx-6 mb-4 flex items-center gap-3">
-                        <Link href={`/platform/data/pipelines?view=${view.file}`} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <Link href={`/data/pipelines?view=${view.file}`} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
                           <GitBranch className="w-3 h-3" /> View Pipeline
                         </Link>
                       </div>
