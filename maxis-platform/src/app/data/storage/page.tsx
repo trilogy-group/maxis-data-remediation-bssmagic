@@ -46,7 +46,7 @@ const CONNECTORS: ConnectorConfig[] = [
       { label: 'Schema', value: 'salesforce_server' },
       { label: 'Discovery', value: 'Auto-import via IMPORT FOREIGN SCHEMA' },
     ],
-    exploreLink: '/platform/data/explore',
+    exploreLink: '/data/explore',
   },
   {
     id: 'postgresql',
@@ -290,7 +290,7 @@ export default function StoragePage() {
                     ))}
                   </div>
                   <Link
-                    href="/platform/data/pipelines"
+                    href="/data/pipelines"
                     className="flex items-center gap-2 mt-3 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium hover:bg-orange-100 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Add New Endpoint via Pipeline Editor

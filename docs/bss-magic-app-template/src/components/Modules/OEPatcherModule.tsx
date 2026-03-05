@@ -16,8 +16,12 @@ import {
   Play,
   RotateCcw,
   Settings,
+  Clock,
+  TrendingUp,
+  X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { downloadCSV } from '../../lib/csv-export';
 import { useServices } from '../../services/tmf/hooks';
 import {
   useOERemediateSingle,
@@ -31,6 +35,7 @@ import type { Service } from '../../types/tmf-api';
 import type { OEServiceProblem } from '../../services/salesforce/client';
 import { OERulesEditor } from './OERulesEditor';
 import { BatchScheduler } from './BatchScheduler';
+import { OEAnalyticsPanel } from './OEAnalyticsPanel';
 
 type ScenarioType = 'voice' | 'fibre' | 'esms' | 'access';
 
@@ -132,6 +137,102 @@ function StatusBadge({ status }: { status: string }) {
     <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', s.bg, s.text)}>
       {s.label}
     </span>
+  );
+}
+
+// ========================================================================
+// KPI Summary Cards
+// ========================================================================
+
+function computeKPIs(problems: OEServiceProblem[]) {
+  const total = problems.length;
+  const remediated = problems.filter(p => p.status === 'resolved').length;
+  const pending = problems.filter(p => p.status === 'pending').length;
+  const failed = problems.filter(p => p.status === 'rejected').length;
+  const inProgress = problems.filter(p => p.status === 'inProgress').length;
+
+  let mttrSeconds: number | null = null;
+  const resolved = problems.filter(p => p.status === 'resolved');
+  if (resolved.length > 0) {
+    const durations = resolved
+      .map(p => {
+        if (p.remediationDuration) return p.remediationDuration;
+        const start = p.detectedAt || p.creationDate;
+        const end = p.resolvedAt || p.resolutionDate;
+        if (!start || !end) return null;
+        return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
+      })
+      .filter((d): d is number => d !== null && d > 0);
+    if (durations.length > 0) {
+      mttrSeconds = durations.reduce((a, b) => a + b, 0) / durations.length;
+    }
+  }
+
+  const errorRate = total > 0 ? (failed / total) * 100 : 0;
+
+  return { total, remediated, pending, failed, inProgress, mttrSeconds, errorRate };
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds === null) return '--';
+  if (seconds < 60) return `${seconds.toFixed(0)}s`;
+  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`;
+  return `${(seconds / 3600).toFixed(1)}h`;
+}
+
+function KPISummaryCards({ problems }: { problems: OEServiceProblem[] }) {
+  const kpi = useMemo(() => computeKPIs(problems), [problems]);
+
+  const cards: Array<{ label: string; value: string | number; color: string; icon: typeof CheckCircle2 }> = [
+    { label: 'Total Detected', value: kpi.total, color: 'text-slate-900 dark:text-slate-100', icon: Search },
+    { label: 'Remediated', value: kpi.remediated, color: 'text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
+    { label: 'Pending', value: kpi.pending, color: 'text-amber-600 dark:text-amber-400', icon: Clock },
+    { label: 'Failed', value: kpi.failed, color: kpi.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400', icon: XCircle },
+    { label: 'MTTR', value: formatDuration(kpi.mttrSeconds), color: 'text-blue-600 dark:text-blue-400', icon: TrendingUp },
+    { label: 'Error Rate', value: `${kpi.errorRate.toFixed(1)}%`, color: kpi.errorRate > 5 ? 'text-red-600 dark:text-red-400' : 'text-slate-400', icon: AlertTriangle },
+  ];
+
+  if (problems.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      {cards.map(c => (
+        <div key={c.label} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-center">
+          <div className="flex items-center justify-center mb-1">
+            <c.icon className={cn('w-3.5 h-3.5', c.color)} />
+          </div>
+          <div className={cn('text-xl font-bold', c.color)}>{c.value}</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">{c.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ========================================================================
+// Failure Alert Banner
+// ========================================================================
+
+function FailureAlertBanner({ failedCount, onDismiss }: { failedCount: number; onDismiss: () => void }) {
+  if (failedCount === 0) return null;
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">
+            {failedCount} service{failedCount > 1 ? 's' : ''} failed remediation
+          </p>
+          <p className="text-xs text-red-600 dark:text-red-400">
+            Check the tracking table for details. Failed services can be retried.
+          </p>
+        </div>
+      </div>
+      <button onClick={onDismiss} className="p-1 text-red-400 hover:text-red-600 transition-colors" title="Dismiss">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
   );
 }
 
@@ -319,8 +420,11 @@ interface DetectionProgress {
 export function OEPatcherModule() {
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('voice');
   const [searchTerm, setSearchTerm] = useState('');
+  const [enrichmentFilter, setEnrichmentFilter] = useState<'all' | 'available' | 'missing'>('all');
+  const [trackingFilter, setTrackingFilter] = useState<'all' | 'pending' | 'partial' | 'resolved' | 'rejected'>('all');
   const [remediatingId, setRemediatingId] = useState<string | null>(null);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const [alertDismissed, setAlertDismissed] = useState(false);
 
   const scenario = scenarios.find(s => s.id === activeScenario) || scenarios[0];
 
@@ -392,12 +496,26 @@ export function OEPatcherModule() {
 
   const isRunning = detecting;
 
-  const { data: services, isLoading, error, refetch, isFetching } = useServices({
+  const serviceQueryParams = (svcType: string) => ({
     limit: 500,
-    x_serviceType: scenario.serviceType,
-    x_migratedData: true,
+    x_serviceType: svcType,
+    x_migratedData: true as const,
     x_replacementServiceId: '',
   });
+
+  const { data: services, isLoading, error, refetch, isFetching } = useServices(serviceQueryParams(scenario.serviceType));
+
+  const { data: voiceServices } = useServices(serviceQueryParams('Voice'));
+  const { data: fibreServices } = useServices(serviceQueryParams('Fibre Service'));
+  const { data: esmsServices } = useServices(serviceQueryParams('eSMS Service'));
+  const { data: accessServices } = useServices(serviceQueryParams('Access Service'));
+
+  const tabCounts: Record<ScenarioType, number | null> = useMemo(() => ({
+    voice: voiceServices?.length ?? null,
+    fibre: fibreServices?.length ?? null,
+    esms: esmsServices?.length ?? null,
+    access: accessServices?.length ?? null,
+  }), [voiceServices, fibreServices, esmsServices, accessServices]);
 
   const { data: allProblems, isLoading: isLoadingProblems, refetch: refetchProblems } = useOEServiceProblems(detecting);
 
@@ -409,24 +527,59 @@ export function OEPatcherModule() {
 
   const pendingCount = useMemo(() => tabProblems.filter(sp => sp.status === 'pending').length, [tabProblems]);
   const resolvedCount = useMemo(() => tabProblems.filter(sp => sp.status === 'resolved').length, [tabProblems]);
+  const rejectedCount = useMemo(() => tabProblems.filter(sp => sp.status === 'rejected').length, [tabProblems]);
+  const partialCount = useMemo(() => tabProblems.filter(sp => {
+    const state = sp.remediationState || '';
+    return state === 'PARTIALLY_REMEDIATED' || state === 'ENRICHMENT_UNAVAILABLE' || state === 'ATTACHMENT_CORRUPT';
+  }).length, [tabProblems]);
+  const globalFailedCount = useMemo(() => (allProblems || []).filter(sp => sp.status === 'rejected').length, [allProblems]);
 
-  // Filter services by search
+  const filteredProblems = useMemo(() => {
+    if (trackingFilter === 'all') return tabProblems;
+    if (trackingFilter === 'partial') {
+      return tabProblems.filter(sp => {
+        const state = sp.remediationState || '';
+        return state === 'PARTIALLY_REMEDIATED' || state === 'ENRICHMENT_UNAVAILABLE' || state === 'ATTACHMENT_CORRUPT';
+      });
+    }
+    return tabProblems.filter(sp => sp.status === trackingFilter);
+  }, [tabProblems, trackingFilter]);
+
+  // Filter services by search + enrichment status
   const filteredServices = useMemo(() => {
     if (!services) return [];
-    if (!searchTerm.trim()) return services;
-    const term = searchTerm.toLowerCase().trim();
-    return services.filter(s =>
-      s.id.toLowerCase().includes(term) ||
-      (s.name || '').toLowerCase().includes(term) ||
-      (s.x_accountName || '').toLowerCase().includes(term) ||
-      (s.x_solutionId || '').toLowerCase().includes(term) ||
-      (s.x_solutionName || '').toLowerCase().includes(term)
-    );
-  }, [services, searchTerm]);
+    let result = services;
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(s =>
+        s.id.toLowerCase().includes(term) ||
+        (s.name || '').toLowerCase().includes(term) ||
+        (s.x_accountName || '').toLowerCase().includes(term) ||
+        (s.x_solutionId || '').toLowerCase().includes(term) ||
+        (s.x_solutionName || '').toLowerCase().includes(term)
+      );
+    }
+
+    if (enrichmentFilter !== 'all') {
+      result = result.filter(s => {
+        const hasMissing = getMissingFieldsFromView(s, activeScenario).length > 0;
+        return enrichmentFilter === 'missing' ? hasMissing : !hasMissing;
+      });
+    }
+
+    return result;
+  }, [services, searchTerm, enrichmentFilter, activeScenario]);
 
   const servicesWithIssues = useMemo(() => {
-    return filteredServices.filter(s => getMissingFieldsFromView(s, activeScenario).length > 0);
-  }, [filteredServices, activeScenario]);
+    if (!services) return [];
+    return services.filter(s => getMissingFieldsFromView(s, activeScenario).length > 0);
+  }, [services, activeScenario]);
+
+  const servicesWithoutIssues = useMemo(() => {
+    if (!services) return [];
+    return services.filter(s => getMissingFieldsFromView(s, activeScenario).length === 0);
+  }, [services, activeScenario]);
 
   const handleRemediate = (serviceId: string, spId: string) => {
     setRemediatingId(serviceId);
@@ -509,12 +662,23 @@ export function OEPatcherModule() {
         <OERulesEditor onClose={() => setShowConfigEditor(false)} />
       )}
 
+      {/* KPI Summary Cards */}
+      <KPISummaryCards problems={allProblems || []} />
+
+      {/* Failure Alert Banner */}
+      {!alertDismissed && (
+        <FailureAlertBanner failedCount={globalFailedCount} onDismiss={() => setAlertDismissed(true)} />
+      )}
+
+      {/* Analytics Panel (collapsible) */}
+      <OEAnalyticsPanel problems={allProblems || []} />
+
       {/* Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-700">
         <div className="flex flex-wrap gap-1">
           {scenarios.map((s) => {
             const isActive = activeScenario === s.id;
-            const count = services && activeScenario === s.id ? filteredServices.length : null;
+            const count = tabCounts[s.id];
             return (
               <button
                 key={s.id}
@@ -527,8 +691,13 @@ export function OEPatcherModule() {
                 )}
               >
                 {s.name}
-                {isActive && count !== null && (
-                  <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-full">
+                {count !== null && (
+                  <span className={cn(
+                    'ml-2 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full',
+                    isActive
+                      ? 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400',
+                  )}>
                     {count}
                   </span>
                 )}
@@ -568,13 +737,32 @@ export function OEPatcherModule() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Service Candidates ({filteredServices.length})
-            {servicesWithIssues.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-red-600 dark:text-red-400">
-                ({servicesWithIssues.length} with view-level issues)
-              </span>
-            )}
+            Service Candidates ({filteredServices.length}{enrichmentFilter !== 'all' ? ` of ${services?.length ?? 0}` : ''})
           </h3>
+          <div className="flex items-center gap-1">
+            {([
+              { key: 'all', label: 'All', count: services?.length ?? 0 },
+              { key: 'available', label: 'Enrichment Available', count: servicesWithoutIssues.length },
+              { key: 'missing', label: 'Enrichment Missing', count: servicesWithIssues.length },
+            ] as const).map(({ key, label, count }) => (
+              <button
+                key={key}
+                onClick={() => setEnrichmentFilter(key)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors',
+                  enrichmentFilter === key
+                    ? key === 'missing'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                      : key === 'available'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800',
+                )}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
         </div>
 
         {isLoading && (
@@ -604,7 +792,7 @@ export function OEPatcherModule() {
                     <th className="px-3 py-2">External ID</th>
                     <th className="px-3 py-2">Billing Account</th>
                     <th className="px-3 py-2">Solution</th>
-                    <th className="px-3 py-2 text-center">Status</th>
+                    <th className="px-3 py-2 text-center">Enrichment</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -619,7 +807,13 @@ export function OEPatcherModule() {
 
         {!isLoading && !error && filteredServices.length === 0 && (
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 text-center text-sm text-slate-500">
-            {searchTerm ? `No services matching "${searchTerm}"` : `No ${scenario.name} candidates found.`}
+            {searchTerm
+              ? `No services matching "${searchTerm}"`
+              : enrichmentFilter === 'missing'
+                ? `No ${scenario.name} candidates with missing enrichment data.`
+                : enrichmentFilter === 'available'
+                  ? `No ${scenario.name} candidates with enrichment data available.`
+                  : `No ${scenario.name} candidates found.`}
           </div>
         )}
       </div>
@@ -714,30 +908,80 @@ export function OEPatcherModule() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Remediation Tracking
+              Remediation Tracking ({filteredProblems.length}{trackingFilter !== 'all' ? ` of ${tabProblems.length}` : ''})
             </h3>
+          </div>
+          <div className="flex items-center gap-1">
+            {([
+              { key: 'all' as const, label: 'All', count: tabProblems.length },
+              { key: 'pending' as const, label: 'Pending', count: pendingCount },
+              { key: 'partial' as const, label: 'Needs Attention', count: partialCount },
+              { key: 'resolved' as const, label: 'Resolved', count: resolvedCount },
+              { key: 'rejected' as const, label: 'Failed', count: rejectedCount },
+            ]).map(({ key, label, count }) => (
+              <button
+                key={key}
+                onClick={() => setTrackingFilter(key)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors',
+                  trackingFilter === key
+                    ? key === 'rejected'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                      : key === 'resolved'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : key === 'pending'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          : key === 'partial'
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                            : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800',
+                )}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
             {tabProblems.length > 0 && (
-              <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
-                {tabProblems.length}
-              </span>
+              <button
+                onClick={() => {
+                  const rows = tabProblems.map(p => ({
+                    id: p.id,
+                    status: p.status,
+                    serviceId: p.serviceId,
+                    serviceType: p.serviceType,
+                    missingFields: p.missingFields.join(', '),
+                    fieldsPatched: p.fieldsPatched.join(', '),
+                    presentFields: Object.entries(p.presentFields).map(([k, v]) => `${k}=${v}`).join(', '),
+                    remediationState: p.remediationState,
+                    triggeredBy: p.triggeredBy ?? '',
+                    remediationDuration: p.remediationDuration ?? '',
+                    detectedAt: p.detectedAt,
+                    resolvedAt: p.resolvedAt ?? '',
+                    productDefinitionName: p.productDefinitionName ?? '',
+                    creationDate: p.creationDate ?? '',
+                    resolutionDate: p.resolutionDate ?? '',
+                  }));
+                  const ts = new Date().toISOString().slice(0, 10);
+                  downloadCSV(rows, `oe-audit-trail-${ts}.csv`);
+                }}
+                className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
             )}
             {pendingCount > 0 && (
-              <span className="text-xs text-amber-600">{pendingCount} pending</span>
-            )}
-            {resolvedCount > 0 && (
-              <span className="text-xs text-emerald-600">{resolvedCount} resolved</span>
+              <button
+                onClick={handleBatchRemediate}
+                disabled={remediateMutation.isPending}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {remediateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                Batch Remediate ({pendingCount})
+              </button>
             )}
           </div>
-          {pendingCount > 0 && (
-            <button
-              onClick={handleBatchRemediate}
-              disabled={remediateMutation.isPending}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
-            >
-              {remediateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
-              Batch Remediate ({pendingCount})
-            </button>
-          )}
         </div>
 
         {isLoadingProblems && (
@@ -747,7 +991,7 @@ export function OEPatcherModule() {
           </div>
         )}
 
-        {!isLoadingProblems && tabProblems.length > 0 && (
+        {!isLoadingProblems && filteredProblems.length > 0 && (
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="max-h-[400px] overflow-y-auto">
               <table className="w-full text-left">
@@ -763,7 +1007,7 @@ export function OEPatcherModule() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tabProblems.map((sp) => (
+                  {filteredProblems.map((sp) => (
                     <TrackingRow
                       key={sp.id}
                       sp={sp}
@@ -777,11 +1021,14 @@ export function OEPatcherModule() {
           </div>
         )}
 
-        {!isLoadingProblems && tabProblems.length === 0 && (
+        {!isLoadingProblems && filteredProblems.length === 0 && (
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 text-center text-sm text-slate-500">
-            No service problems tracked for {scenario.name} yet.
-            <br />
-            <span className="text-slate-400 text-xs">Click "Check All {scenario.name}" above to analyze OE attachments and create tracking records.</span>
+            {trackingFilter !== 'all' && tabProblems.length > 0
+              ? `No ${trackingFilter} service problems for ${scenario.name}.`
+              : <>No service problems tracked for {scenario.name} yet.
+                  <br />
+                  <span className="text-slate-400 text-xs">Run Detection above to analyze OE attachments and create tracking records.</span>
+                </>}
           </div>
         )}
 
@@ -799,30 +1046,8 @@ export function OEPatcherModule() {
       <BatchScheduler
         category="PartialDataMissing"
         useCase="1867"
-        onImmediateStart={({ batchSize }) => {
-          const pending = tabProblems.filter(sp => sp.status === 'pending');
-          if (pending.length === 0) return;
-          const toProcess = pending.slice(0, batchSize);
-          let idx = 0;
-          const processNext = () => {
-            if (idx >= toProcess.length) {
-              refetchProblems();
-              return;
-            }
-            const sp = toProcess[idx++];
-            setRemediatingId(sp.serviceId);
-            remediateMutation.mutate(
-              { serviceId: sp.serviceId, service_problem_id: sp.id },
-              {
-                onSettled: () => {
-                  setRemediatingId(null);
-                  refetchProblems();
-                  processNext();
-                },
-              },
-            );
-          };
-          processNext();
+        onImmediateStart={() => {
+          refetchProblems();
         }}
       />
     </div>

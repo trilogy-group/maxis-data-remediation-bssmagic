@@ -1,0 +1,278 @@
+/* Import animations for auth screens */
+@import './styles/animations.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AI Executing Animated Border */
+@keyframes rotate-gradient {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Yellow Border Beam Animation */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-text-primary;
+  }
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --kanban-board-circle-blue: oklch(0.6232 0.1879 259.80);
+    --kanban-board-circle-cyan: oklch(0.7146 0.1256 215.13);
+    --kanban-board-circle-gray: oklch(0.5513 0.0233 264.36);
+    --kanban-board-circle-green: oklch(0.7229 0.1921 149.58);
+    --kanban-board-circle-indigo: oklch(0.5860 0.2037 277.12);
+    --kanban-board-circle-pink: oklch(0.6559 0.2117 354.34);
+    --kanban-board-circle-purple: oklch(0.6267 0.2325 303.86);
+    --kanban-board-circle-red: oklch(0.6368 0.2078 25.33);
+    --kanban-board-circle-violet: oklch(0.6059 0.2187 292.72);
+    --kanban-board-circle-yellow: oklch(0.7959 0.1618 86.05);
+    --color-kanban-board-circle-blue: var(--kanban-board-circle-blue);
+    --color-kanban-board-circle-cyan: var(--kanban-board-circle-cyan);
+    --color-kanban-board-circle-gray: var(--kanban-board-circle-gray);
+    --color-kanban-board-circle-green: var(--kanban-board-circle-green);
+    --color-kanban-board-circle-indigo: var(--kanban-board-circle-indigo);
+    --color-kanban-board-circle-pink: var(--kanban-board-circle-pink);
+    --color-kanban-board-circle-primary: var(--kanban-board-circle-primary);
+    --color-kanban-board-circle-purple: var(--kanban-board-circle-purple);
+    --color-kanban-board-circle-red: var(--kanban-board-circle-red);
+    --color-kanban-board-circle-violet: var(--kanban-board-circle-violet);
+    --color-kanban-board-circle-yellow: var(--kanban-board-circle-yellow);
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --kanban-board-circle-blue: oklch(0.7135 0.1435 254.61);
+    --kanban-board-circle-cyan: oklch(0.7973 0.1339 211.45);
+    --kanban-board-circle-gray: oklch(0.7137 0.0192 261.33);
+    --kanban-board-circle-green: oklch(0.8003 0.1823 151.70);
+    --kanban-board-circle-indigo: oklch(0.6797 0.1586 276.96);
+    --kanban-board-circle-pink: oklch(0.7253 0.1752 349.74);
+    --kanban-board-circle-purple: oklch(0.7218 0.1766 305.51);
+    --kanban-board-circle-red: oklch(0.7108 0.1660 22.21);
+    --kanban-board-circle-violet: oklch(0.7093 0.1589 293.52);
+    --kanban-board-circle-yellow: oklch(0.8601 0.1730 91.84);
+  }
+  .theme {
+    --kanban-board-circle-primary: var(--primary);
+    --animate-shine: shine var(--duration) infinite linear;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors duration-200 font-medium;
+  }
+
+  .btn-secondary {
+    @apply bg-interactive-muted text-text-secondary px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors duration-200 font-medium;
+  }
+
+  .btn-danger {
+    @apply bg-error text-white px-4 py-2 rounded-lg hover:bg-error-700 transition-colors duration-200 font-medium;
+  }
+
+  .btn-success {
+    @apply bg-success text-white px-4 py-2 rounded-lg hover:bg-success-900 transition-colors duration-200 font-medium;
+  }
+
+  .btn-warning {
+    @apply bg-warning text-white px-4 py-2 rounded-lg hover:bg-warning-900 transition-colors duration-200 font-medium;
+  }
+
+  .card {
+    @apply bg-background-paper rounded-lg shadow-sm border border-border p-6;
+  }
+
+  .card-interactive {
+    @apply bg-background-paper rounded-lg shadow-sm border border-border hover:border-border-interactive transition-colors;
+  }
+
+  .sidebar {
+    @apply bg-background-paper border-r border-border w-80 flex-shrink-0;
+  }
+
+  .canvas-container {
+    @apply relative overflow-hidden bg-background;
+  }
+
+  .entity-node {
+    @apply absolute border-2 rounded-lg p-3 cursor-move select-none;
+  }
+
+  .journey-step {
+    @apply absolute border-2 rounded-lg p-3 cursor-move select-none;
+  }
+
+  .status-badge-success {
+    @apply bg-success/10 text-success px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .status-badge-warning {
+    @apply bg-warning/10 text-warning px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .status-badge-error {
+    @apply bg-error/10 text-error px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .status-badge-info {
+    @apply bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-border-interactive transition-colors;
+  }
+
+  .section-header {
+    @apply p-4 bg-background-paper border-b border-border;
+  }
+
+  .ai-avatar {
+    @apply w-8 h-8 bg-primary rounded-full flex items-center justify-center;
+  }
+
+  .ai-message {
+    @apply bg-primary/5 rounded-lg p-4;
+  }
+
+  .user-message {
+    @apply bg-interactive-muted rounded-lg p-4;
+  }
+
+  /* Apple-like UI Design System for Right Panel */
+  .apple-btn {
+    @apply inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ease-out border border-gray-300 bg-white text-gray-700 shadow-sm hover:shadow-md hover:border-gray-400 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:ring-opacity-25;
+  }
+
+  .apple-btn-primary {
+    @apply border-primary bg-primary text-white hover:bg-primary-600 hover:border-primary-600 focus:ring-primary;
+  }
+
+  .apple-btn-secondary {
+    @apply border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:border-gray-400 focus:ring-gray-400;
+  }
+
+  .apple-btn-danger {
+    @apply border-red-400 bg-red-500 text-white hover:bg-red-600 hover:border-red-500 focus:ring-red-500;
+  }
+
+  .apple-btn-success {
+    @apply border-green-400 bg-green-500 text-white hover:bg-green-600 hover:border-green-500 focus:ring-green-500;
+  }
+
+  /* Apple-like Icon Buttons */
+  .apple-btn-icon {
+    @apply inline-flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 ease-out border border-gray-300 bg-white shadow-sm hover:shadow-md active:scale-95 focus:outline-none focus:ring-2 focus:ring-opacity-25;
+  }
+
+  .apple-btn-icon-primary {
+    @apply border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary/40 focus:ring-primary;
+  }
+
+  .apple-btn-icon-success {
+    @apply border-green-300 bg-green-50 text-green-600 hover:bg-green-100 hover:border-green-400 focus:ring-green-500;
+  }
+
+  .apple-btn-icon-danger {
+    @apply border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-400 focus:ring-red-500;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@theme inline {
+  @keyframes shine {
+  0% {
+    background-position: 0% 0%;
+    }
+  50% {
+    background-position: 100% 100%;
+    }
+  to {
+    background-position: 0% 0%;
+    }
+  }
+}

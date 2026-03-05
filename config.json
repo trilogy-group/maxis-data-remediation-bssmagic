@@ -1,0 +1,8 @@
+{
+  "clientId": "tenant_01K5Z9VSEA0JG8ZVPCSC7CXVYR_vlad-runtime",
+  "region": "us-east-1",
+  "credentials": "c20nf3vibjhexj.credentials.iot.us-east-1.amazonaws.com",
+  "ats": "a2pr0p4uqkl9nb-ats.iot.us-east-1.amazonaws.com",
+  "envName": "prod",
+  "roleAlias": "prod_RuntimeRoleAlias"
+}

@@ -17,6 +17,7 @@ export const NAV_ITEMS: Record<LayerType, NavItem[]> = {
   data: [
     { label: 'Connectors', href: '/data/storage', icon: 'HardDrive' },
     { label: 'Pipelines', href: '/data/pipelines', icon: 'GitBranch' },
+    { label: 'Mapping Builder', href: '/data/mapping-builder', icon: 'Link' },
     { label: 'Semantic Mapping', href: '/data/semantic-mapping', icon: 'Link' },
     { label: 'Data Quality', href: '/data/data-quality', icon: 'CheckCircle' },
     { label: 'Explore', href: '/data/explore', icon: 'Search' },

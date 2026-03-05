@@ -1,9 +1,11 @@
 'use client';
 
 import { VIEWS, VIEW_GROUPS } from '@/lib/views-data';
-import { GitBranch, ChevronDown, ChevronRight, FileCode, ArrowRight, Code, Link as LinkIcon, Zap, AlertTriangle, Database, Plus, X, Play, Upload, RefreshCw, Pencil, Trash2, CheckCircle, Loader2 } from 'lucide-react';
+import { GitBranch, ChevronDown, ChevronRight, FileCode, ArrowRight, Code, Link as LinkIcon, Zap, AlertTriangle, Database, Plus, X, Play, Upload, RefreshCw, Pencil, Trash2, CheckCircle, Loader2, Circle, Wifi } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMetadata } from '@/lib/api';
 import Link from 'next/link';
 
 const VIEW_TEMPLATE = `-- New TMF Entity View
@@ -40,6 +42,19 @@ export default function PipelinesPage() {
   const [redeployingAll, setRedeployingAll] = useState(false);
   const [redeployProgress, setRedeployProgress] = useState<string[]>([]);
   const searchParams = useSearchParams();
+
+  const { data: metadata, isLoading: metaLoading, refetch: refetchMeta } = useQuery({
+    queryKey: ['metadata'],
+    queryFn: fetchMetadata,
+    staleTime: 30000,
+  });
+
+  const mappedEntities = new Set(
+    metadata?.resources.filter(r => r.mapped).map(r => r.name) ?? []
+  );
+  const allKnownEntities = new Set(
+    metadata?.resources.map(r => r.name) ?? []
+  );
 
   const openEditor = (title: string, sql: string) => {
     setEditorTitle(title);
@@ -83,12 +98,12 @@ export default function PipelinesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => openEditor('New View', VIEW_TEMPLATE)}
+          <Link
+            href="/data/mapping-builder"
             className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-medium"
           >
             <Plus className="w-4 h-4" /> Create View
-          </button>
+          </Link>
           <button
             onClick={async () => {
               setRedeployingAll(true);
@@ -208,6 +223,33 @@ export default function PipelinesPage() {
         ))}
       </div>
 
+      {/* Runtime Status Bar */}
+      <div className="mb-6 bg-white rounded-xl border border-slate-200 px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Wifi className={`w-4 h-4 ${metaLoading ? 'text-slate-300 animate-pulse' : mappedEntities.size > 0 ? 'text-green-500' : 'text-red-500'}`} />
+          <span className="text-sm text-slate-700 font-medium">Runtime Status</span>
+          {metaLoading ? (
+            <span className="text-xs text-slate-400">Checking...</span>
+          ) : (
+            <span className="text-xs text-slate-500">
+              <span className="text-green-600 font-semibold">{mappedEntities.size}</span> registered
+              {' + '}
+              <span className="text-blue-600 font-semibold">{allKnownEntities.size - mappedEntities.size}</span> active
+              {' / '}
+              <span className="text-slate-400">{metadata?.resources.length ?? '?'} TMF entities</span>
+              {' / '}
+              <span className="text-purple-500">{metadata?.sources.find(s => s.name === 'salesforce_server')?.resources.length.toLocaleString() ?? '?'}</span> SF objects
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => refetchMeta()}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 font-medium"
+        >
+          <RefreshCw className={`w-3 h-3 ${metaLoading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </div>
+
       {(Object.keys(VIEW_GROUPS) as (keyof typeof VIEW_GROUPS)[]).map(groupKey => {
         const group = VIEW_GROUPS[groupKey];
         const views = VIEWS.filter(v => v.group === groupKey);
@@ -241,7 +283,28 @@ export default function PipelinesPage() {
                       }
                       <FileCode className={`w-5 h-5 shrink-0 ${isInternalView ? 'text-slate-300' : 'text-slate-400'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-900">{view.name}</div>
+                        <div className="font-medium text-slate-900 flex items-center gap-2">
+                          {view.name}
+                          {!metaLoading && view.tmfEntity && (
+                            mappedEntities.has(view.tmfEntity) ? (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-50 border border-green-200 rounded text-[9px] text-green-700 font-medium" title="Registered and live on runtime">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Live
+                              </span>
+                            ) : allKnownEntities.has(view.tmfEntity) ? (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 border border-blue-200 rounded text-[9px] text-blue-600 font-medium" title="View exists but was deployed after startup — API responds but metadata shows unregistered">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" /> Active
+                              </span>
+                            ) : view.tmfEndpoint ? (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-50 border border-yellow-200 rounded text-[9px] text-yellow-600 font-medium" title="Has endpoint but entity not in runtime metadata">
+                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" /> Custom
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-slate-500 font-medium" title="Detection logic — no dedicated API endpoint">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" /> Filter
+                              </span>
+                            )
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 font-mono">{view.file}</div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -371,7 +434,7 @@ export default function PipelinesPage() {
                         <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                           <div className="flex items-center gap-3">
                             {view.tmfEntity && !isInternalView && (
-                              <Link href={`/platform/data/semantic-mapping?entity=${view.tmfEntity}`} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium">
+                              <Link href={`/data/semantic-mapping?entity=${view.tmfEntity}`} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium">
                                 <LinkIcon className="w-3 h-3" /> View Field Dictionary
                               </Link>
                             )}

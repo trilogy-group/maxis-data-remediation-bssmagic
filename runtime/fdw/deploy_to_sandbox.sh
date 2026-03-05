@@ -131,6 +131,35 @@ for view in "${SOLUTION_VIEWS[@]}"; do
     fi
 done
 
+# IoT QBS detection view (requires relationship column on orchestration foreign table)
+echo ""
+echo "IoT QBS Detection:"
+echo ""
+echo "--- Adding orchestration template relationship column ---"
+echo 'ALTER FOREIGN TABLE salesforce_server."CSPOFA__Orchestration_Process__c" ADD COLUMN IF NOT EXISTS "CSPOFA__Orchestration_Process_Template__r.Name" text;' | \
+    aws ecs execute-command \
+        --cluster bssmagic-cluster \
+        --task $TASK_ARN \
+        --container bssmagic-runtime-sandbox \
+        --interactive \
+        --command "bash -c 'cat > /tmp/view.sql'" 2>/dev/null
+aws ecs execute-command \
+    --cluster bssmagic-cluster \
+    --task $TASK_ARN \
+    --container bssmagic-runtime-sandbox \
+    --interactive \
+    --command "bash -c 'PGPASSWORD=admin psql -h localhost -U admin -d bssmagic_runtime -f /tmp/view.sql'" 2>&1 | grep -E "ALTER|ERROR" || echo "  (column may already exist)"
+
+IOT_VIEWS=(
+    "iot_qbs_detection.sql"
+)
+
+for view in "${IOT_VIEWS[@]}"; do
+    if [ -f "$view" ]; then
+        apply_view "$view"
+    fi
+done
+
 echo ""
 echo "=========================================="
 echo "✓ SANDBOX DEPLOYMENT COMPLETE!"

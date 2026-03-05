@@ -83,6 +83,25 @@ for view in "${CORE_VIEWS[@]}"; do
 done
 
 # =============================================================================
+# IOT QBS PREREQUISITES (relationship column for orchestration detection)
+# =============================================================================
+echo ""
+echo "=========================================="
+echo "IOT QBS PREREQUISITES"
+echo "=========================================="
+
+echo ""
+echo "=== Adding orchestration template relationship column ==="
+IOT_PRE_SQL='ALTER FOREIGN TABLE salesforce_server."CSPOFA__Orchestration_Process__c" ADD COLUMN IF NOT EXISTS "CSPOFA__Orchestration_Process_Template__r.Name" text;'
+IOT_PRE_B64=$(echo "$IOT_PRE_SQL" | base64 | tr -d '\n')
+aws ecs execute-command \
+    --cluster bssmagic-cluster \
+    --task $TASK_ARN \
+    --container bssmagic-runtime \
+    --interactive \
+    --command "bash -c 'echo \"$IOT_PRE_B64\" | base64 -d | psql -U postgres -d bssmagic'" 2>&1 | grep -E "ALTER|ERROR" || echo "  (column may already exist)"
+
+# =============================================================================
 # MIGRATION & REMEDIATION VIEWS
 # =============================================================================
 echo ""
@@ -96,6 +115,7 @@ OTHER_VIEWS=(
     "failedMigrationSolutions.sql"
     "serviceProblem.sql"              # TMF656 - Confirmed issues & remediation tracking
     "serviceProblemEventRecord.sql"   # TMF656 - Apex job details from AsyncApexJob
+    "iot_qbs_detection.sql"           # IoT QBS: Held orchestration detection
 )
 
 for view in "${OTHER_VIEWS[@]}"; do

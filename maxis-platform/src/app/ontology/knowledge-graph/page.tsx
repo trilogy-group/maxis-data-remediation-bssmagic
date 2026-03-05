@@ -123,7 +123,7 @@ export default function KnowledgeGraphPage() {
               <g key={node.id}
                 onMouseEnter={() => setHoveredNode(node.id)}
                 onMouseLeave={() => setHoveredNode(null)}
-                onClick={() => { const v = NODE_TO_VIEW[node.id]; if (v) router.push(`/platform/data/pipelines?view=${v}`); }}
+                onClick={() => { const v = NODE_TO_VIEW[node.id]; if (v) router.push(`/data/pipelines?view=${v}`); }}
                 style={{ cursor: 'pointer', opacity: highlighted ? 1 : 0.2, transition: 'opacity 0.2s' }}
                 filter={node.hasIssues ? 'url(#glow)' : undefined}
               >

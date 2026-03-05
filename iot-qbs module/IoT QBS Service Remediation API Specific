@@ -1,0 +1,1020 @@
+IoT QBS Service Remediation API Specification and Workflow Overview
+
+
+
+By Ashish Agarwal
+
+8 min
+
+Add a reaction
+Karma Page Builder
+Karma Page Builder
+IoT QBS Service Remediation API Specification
+Overview
+The IoT QBS Service Remediation API provides REST endpoints for reading order/service data, retrieving OE and Configuration attributes from CloudSense managed packages, patching incorrect service-to-PC mappings, and releasing orchestration holds. These APIs are consumed exclusively by BSS Magic as part of the IoT QBS remediation workflow.
+
+All APIs are a thin data layer -- they perform data access only (SOQL reads, managed package callouts, DML writes). All business logic (validation, SIM-to-PC mapping, patch payload construction, decisioning) resides in BSS Magic.
+
+Base Path: /services/apexrest/api/v1/iot-qbs-orders
+
+Authentication
+All API requests require Salesforce OAuth 2.0:
+
+
+
+Authorization: Bearer {access_token}
+Base URL
+Production: https://{instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders
+
+Sandbox: https://{sandbox-instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders
+
+API Classification
+#
+
+Endpoint
+
+Method
+
+Called
+
+Type
+
+Consumer
+
+1
+
+/iot-qbs-orders/{orchestrationProcessId}
+
+GET
+
+Once
+
+Data read
+
+BSS Magic
+
+2
+
+/iot-qbs-orders/{orchestrationProcessId}/pc-data/{pcId}
+
+GET
+
+Per PC
+
+Data read
+
+BSS Magic
+
+3
+
+/iot-qbs-orders/{orchestrationProcessId}/services
+
+PUT
+
+Per PC
+
+Data write
+
+BSS Magic
+
+4
+
+/iot-qbs-orders/{orchestrationProcessId}/release
+
+POST
+
+Once
+
+Data write
+
+BSS Magic
+
+Per-PC design rationale: Each Apex REST call is a separate Salesforce transaction with its own governor limits (100 SOQL, 150 DML, 100 callouts). API 2 and API 3 are called once per PC so each call gets a fresh governor budget.
+
+When to Use Each Endpoint
+API 1 (GET): Call first. Returns lightweight discovery data -- PCs metadata and service summaries. BSS Magic uses PCs metadata (especially guid and solutionId) to call API 2, and service summaries to later compare SIMs against the truth table. Read-only, safe to retry.
+
+API 2 (GET /pc-data/{pcId}): Call after API 1, once per PC. Returns OE attributes (per service line -- provides ICCID truth table for SIM-to-PC mapping) and Configuration attributes (per PC -- provides PriceItemId/Plan only available here). Read-only, safe to retry. Pass guid and solutionId as query parameters.
+
+API 3 (PUT /services): Call only after BSS Magic has completed validation and built the patch payload. Only mismatched services included. BSS Magic groups by target PC and calls once per PC. The API trusts the payload entirely -- no server-side validation.
+
+API 4 (POST /release): Call only after successful revalidation confirms all mappings are correct. If the orchestration is already released, returns 200 with "already_released": true (safe to retry).
+
+Error Model
+All error responses use a consistent structured format:
+
+
+
+{
+  "error": {
+    "code": "ORCHESTRATION_NOT_FOUND",
+    "message": "No orchestration process found with the given ID",
+    "details": {}
+  }
+}
+Error Response Fields
+Field
+
+Type
+
+Description
+
+error
+
+Object
+
+Error envelope
+
+error.code
+
+String
+
+Machine-readable error code
+
+error.message
+
+String
+
+Human-readable description
+
+error.details
+
+Object or null
+
+Optional key-value context
+
+Error Codes
+Code
+
+HTTP Status
+
+Description
+
+ORCHESTRATION_NOT_FOUND
+
+404
+
+No orchestration process exists with the given ID
+
+ORDER_NOT_FOUND
+
+404
+
+No order associated with this orchestration
+
+PC_NOT_FOUND
+
+404
+
+Product Configuration ID not found for this orchestration
+
+OE_DATA_UNAVAILABLE
+
+500
+
+getOEData call failed or returned empty
+
+CONFIG_DATA_UNAVAILABLE
+
+500
+
+getConfigurations call failed
+
+INVALID_PARAMETER
+
+400
+
+A required parameter is missing or invalid
+
+PATCH_FAILED
+
+500
+
+DML update failed for one or more services
+
+RELEASE_FAILED
+
+500
+
+Failed to update orchestration hold flag
+
+INTERNAL_ERROR
+
+500
+
+Unexpected server-side error
+
+HTTP Status Codes
+Status Code
+
+Description
+
+200
+
+Success -- operation completed
+
+207
+
+Multi-Status -- partial success (some services patched, some failed)
+
+400
+
+Bad Request -- invalid parameters
+
+404
+
+Not Found -- resource does not exist
+
+500
+
+Internal Server Error -- unexpected failure
+
+Endpoints Detail
+1. Get Order Discovery Data
+Lightweight read of orchestration, order, PCs metadata, and service summaries. Returns minimal fields to keep the response fast even for orders with 100+ services.
+
+Endpoint: GET /iot-qbs-orders/{orchestrationProcessId}
+
+Request
+Headers:
+
+
+
+Authorization: Bearer {access_token}
+Path Parameters:
+
+Parameter
+
+Type
+
+Required
+
+Description
+
+orchestrationProcessId
+
+String
+
+Yes
+
+18-character Salesforce ID of the Orchestration Process
+
+Example:
+
+
+
+curl -X GET \
+  "https://{instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders/a1Bxx00000XYZ123" \
+  -H "Authorization: Bearer {access_token}"
+Success Response (200 OK)
+
+
+{
+  "success": true,
+  "orchestrationProcess": {
+    "id": "a1Bxx00000XYZ123",
+    "name": "OP-001234",
+    "onHold": true,
+    "templateName": "Order Fulfillment Process IoT"
+  },
+  "orderId": "a0Oxx00000ABC456",
+  "productConfigurations": [
+    {
+      "pcId": "a0xMS000000AIQHYA4",
+      "name": "IoT SIM Plan - Group A",
+      "guid": "e094a175-5fee-18d0-2b82-c752a8dd0289",
+      "solutionId": "a24MS000000ABlNYAW"
+    },
+    {
+      "pcId": "a0xMS000000BIQHYA4",
+      "name": "IoT SIM Plan - Group B",
+      "guid": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+      "solutionId": "a24MS000000ABlNYAW"
+    }
+  ],
+  "services": [
+    {
+      "serviceId": "a1Sxx00000SVC001",
+      "simSerialNumber": "8960011234567890001",
+      "productConfigurationId": "a0xMS000000AIQHYA4"
+    },
+    {
+      "serviceId": "a1Sxx00000SVC002",
+      "simSerialNumber": "8960011234567890002",
+      "productConfigurationId": "a0xMS000000BIQHYA4"
+    }
+  ],
+  "serviceCount": 2
+}
+Response Fields
+Field
+
+Type
+
+Description
+
+orchestrationProcess.id
+
+String
+
+Orchestration Process ID
+
+orchestrationProcess.name
+
+String
+
+Orchestration Process Name
+
+orchestrationProcess.onHold
+
+Boolean
+
+Current hold status
+
+orchestrationProcess.templateName
+
+String
+
+Template name for verification
+
+orderId
+
+String
+
+Associated Order ID
+
+productConfigurations[].pcId
+
+String
+
+Product Configuration ID
+
+productConfigurations[].name
+
+String
+
+PC Name
+
+productConfigurations[].guid
+
+String
+
+GUID__c field -- needed for API 2 query parameter
+
+productConfigurations[].solutionId
+
+String
+
+cssdm__solution_association__c field -- needed for API 2 query parameter
+
+services[].serviceId
+
+String
+
+Service record ID
+
+services[].simSerialNumber
+
+String
+
+SIM_Serial_Number__c -- primary match key for truth table
+
+services[].productConfigurationId
+
+String
+
+csordtelcoa__Product_Configuration__c -- current PC linkage
+
+serviceCount
+
+Integer
+
+Total number of services
+
+Error Responses
+Scenario
+
+HTTP Status
+
+Error Code
+
+Invalid orchestration ID
+
+404
+
+ORCHESTRATION_NOT_FOUND
+
+Orchestration not on hold
+
+200
+
+Returns response with onHold: false so BSS Magic can decide whether to proceed
+
+No order found
+
+404
+
+ORDER_NOT_FOUND
+
+Internal SOQL
+
+
+-- Orchestration + Order
+SELECT Id, Name, CSPOFA__Process_On_Hold__c,
+       CSPOFA__Orchestration_Process_Template__r.Name,
+       Order__c
+FROM CSPOFA__Orchestration_Process__c
+WHERE Id = :orchestrationProcessId
+-- Services (minimal fields only)
+SELECT Id, SIM_Serial_Number__c, csordtelcoa__Product_Configuration__c
+FROM csord__Service__c
+WHERE csord__Order__c = :orderId
+  AND csordtelcoa__Product_Configuration__r.Type__c != null
+-- Product Configurations
+SELECT Id, Name, GUID__c, cssdm__solution_association__c
+FROM cscfga__Product_Configuration__c
+WHERE Id IN :pcIdsFromServices
+Governor impact: 2-3 SOQL queries, 0 DML, 0 callouts.
+
+2. Get PC Data (OE + Config)
+Returns combined Order Enrichment and Configuration data for a single Product Configuration. Called once per PC by BSS Magic. Each call is a separate Salesforce transaction with fresh governor limits.
+
+Endpoint: GET /iot-qbs-orders/{orchestrationProcessId}/pc-data/{pcId}
+
+Request
+Headers:
+
+
+
+Authorization: Bearer {access_token}
+Path Parameters:
+
+Parameter
+
+Type
+
+Required
+
+Description
+
+orchestrationProcessId
+
+String
+
+Yes
+
+Orchestration Process ID (URL consistency; not used in server logic since this endpoint performs zero SOQL)
+
+pcId
+
+String
+
+Yes
+
+18-character Product Configuration ID
+
+Query Parameters:
+
+Parameter
+
+Type
+
+Required
+
+Description
+
+guid
+
+String
+
+Yes
+
+GUID__c value from API 1 response
+
+solutionId
+
+String
+
+Yes
+
+cssdm__solution_association__c value from API 1 response
+
+Example:
+
+
+
+curl -X GET \
+  "https://{instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders/a1Bxx00000XYZ123/pc-data/a0xMS000000AIQHYA4?guid=e094a175-5fee-18d0-2b82-c752a8dd0289&solutionId=a24MS000000ABlNYAW" \
+  -H "Authorization: Bearer {access_token}"
+Success Response (200 OK)
+
+
+{
+  "success": true,
+  "pcId": "a0xMS000000AIQHYA4",
+  "oeData": [
+    {
+      "componentName": null,
+      "configurations": [
+        {
+          "attributes": [
+            { "name": "ICCID", "value": "8960011234567890001", "displayValue": "8960011234567890001" },
+            { "name": "MSISDN", "value": "60123456789", "displayValue": "60123456789" },
+            { "name": "APN Name", "value": "MACHINE1C", "displayValue": "MACHINE1C" },
+            { "name": "APN Type", "value": "Public", "displayValue": "Public" },
+            { "name": "IMSI", "value": "502121234567890", "displayValue": "502121234567890" },
+            { "name": "Billing Account", "value": "BA-001", "displayValue": "BA-001" }
+          ]
+        }
+      ]
+    }
+  ],
+  "configData": {
+    "attributes": [
+      { "name": "PriceItemId", "value": "a1PriceItem001" },
+      { "name": "Plan", "value": "IoT Basic Plan" },
+      { "name": "ContractTerm", "value": "24" },
+      { "name": "OrderServiceType", "value": "Add" },
+      { "name": "SIM", "value": "8960011234567890001" },
+      { "name": "Billing Account", "value": "BA-001" }
+    ]
+  }
+}
+Response Fields
+Field
+
+Type
+
+Description
+
+pcId
+
+String
+
+Product Configuration ID
+
+oeData
+
+Array
+
+OE components from getOEData. Each component contains configurations, each configuration contains attributes (name/value/displayValue). One set of attributes per service line (per SIM/ICCID within this PC).
+
+configData
+
+Object
+
+Configuration attributes from getConfigurations. One set per PC. Contains attributes only available here: PriceItemId, Plan.
+
+Internal Implementation (Zero SOQL)
+The wrapper performs no SOQL queries. All identifiers are provided via path and query parameters (from API 1 response).
+
+Calls cssmgnt.API_1.getOEData(new List<Id>{pcId}) -- returns Map<Id, List<cssmgnt.ProductProcessingUtility.Component>>
+
+Calls new cssmgnt.api_1().getConfigurations(solutionId, new List<String>{guid}) -- returns JSON string
+
+Combines into response
+
+Serialization constraint (verified in maxisfdrv2 org): JSON.serialize() throws System.JSONException: Cannot serialize type from package: cssmgnt.ProductProcessingUtility.Component. The wrapper must manually iterate Component -> Configuration -> Attribute and build plain Map<String, Object> structures:
+
+
+
+Component -> name (String, can be null)
+          -> configurations (List)
+              -> Configuration -> attributes (List)
+                                  -> Attribute -> name (String)
+                                              -> value (String)
+                                              -> displayValue (String)
+The getConfigurations response is a native JSON string and has no serialization issue.
+
+Governor impact: 0 SOQL, 0 DML, 2 callouts (getOEData + getConfigurations).
+
+Error Responses
+Scenario
+
+HTTP Status
+
+Error Code
+
+PC not found for this orchestration
+
+404
+
+PC_NOT_FOUND
+
+Missing guid or solutionId param
+
+400
+
+INVALID_PARAMETER
+
+getOEData call failed
+
+500
+
+OE_DATA_UNAVAILABLE
+
+getConfigurations call failed
+
+500
+
+CONFIG_DATA_UNAVAILABLE
+
+3. Patch Services
+Updates service records with corrected field values. BSS Magic groups mismatched services by their target (correct) PC and calls this endpoint once per PC. This bounds DML rows per transaction.
+
+Endpoint: PUT /iot-qbs-orders/{orchestrationProcessId}/services
+
+Request
+Headers:
+
+
+
+Authorization: Bearer {access_token}
+Content-Type: application/json
+Path Parameters:
+
+Parameter
+
+Type
+
+Required
+
+Description
+
+orchestrationProcessId
+
+String
+
+Yes
+
+Orchestration Process ID
+
+Request Body:
+
+BSS Magic sends SFDC field API names directly in the fields map. The API performs no field-name mapping and no whitelist validation -- it applies the values via svc.put(fieldName, value) and executes DML. If BSS Magic sends a field name that does not exist on csord__Service__c, Apex throws SObjectException which is caught and returned as a structured 500 error. Access control is enforced at the platform level (Connected App + Permission Set), not in the API code.
+
+This means extending the set of patchable fields requires only a BSS Magic code change -- zero Salesforce deployment.
+
+
+
+{
+  "services": [
+    {
+      "serviceId": "a1Sxx00000SVC001",
+      "fields": {
+        "csordtelcoa__Product_Configuration__c": "a0xMS000000AIQHYA4",
+        "APN_Name__c": "MACHINE1C",
+        "APN_Adress_Type__c": "Public",
+        "Contract_Term__c": "24",
+        "Billing_Account__c": "BA-001",
+        "Commercial_Product__c": "a1PriceItem001",
+        "Commitment__c": "IoT Basic Plan",
+        "External_ID__c": "60123456789"
+      }
+    }
+  ]
+}
+Request Body Fields:
+
+Field
+
+Type
+
+Required
+
+Description
+
+services
+
+Array
+
+Yes
+
+List of services to patch
+
+services[].serviceId
+
+String
+
+Yes
+
+Service record ID
+
+services[].fields
+
+Object
+
+Yes
+
+Map of SFDC field API name to corrected value. Any field on csord__Service__c that the integration user has write access to is accepted.
+
+Currently used fields (owned by BSS Magic mapping logic -- this list can grow without Salesforce code changes):
+
+SFDC Field API Name
+
+Source
+
+Description
+
+csordtelcoa__Product_Configuration__c
+
+Validation
+
+PC re-linkage
+
+APN_Name__c
+
+OE
+
+APN Name
+
+APN_Adress_Type__c
+
+OE
+
+APN Address Type
+
+Contract_Term__c
+
+OE
+
+Contract Term
+
+Billing_Account__c
+
+OE
+
+Billing Account
+
+Commercial_Product__c
+
+Config
+
+Commercial Product (from PriceItemId)
+
+Commitment__c
+
+Config
+
+Commitment (from Plan)
+
+External_ID__c
+
+OE
+
+External ID (MSISDN)
+
+Example:
+
+
+
+curl -X PUT \
+  "https://{instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders/a1Bxx00000XYZ123/services" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "services": [
+      {
+        "serviceId": "a1Sxx00000SVC001",
+        "fields": {
+          "csordtelcoa__Product_Configuration__c": "a0xMS000000AIQHYA4",
+          "APN_Name__c": "MACHINE1C",
+          "APN_Adress_Type__c": "Public"
+        }
+      }
+    ]
+  }'
+Success Response (200 OK)
+
+
+{
+  "success": true,
+  "results": [
+    {
+      "serviceId": "a1Sxx00000SVC001",
+      "status": "UPDATED",
+      "message": "Service updated successfully"
+    }
+  ],
+  "updatedCount": 1,
+  "failedCount": 0
+}
+Partial Success Response (207 Multi-Status)
+
+
+{
+  "success": false,
+  "results": [
+    {
+      "serviceId": "a1Sxx00000SVC001",
+      "status": "UPDATED",
+      "message": "Service updated successfully"
+    },
+    {
+      "serviceId": "a1Sxx00000SVC002",
+      "status": "FAILED",
+      "message": "FIELD_INTEGRITY_EXCEPTION: Billing Account not found"
+    }
+  ],
+  "updatedCount": 1,
+  "failedCount": 1
+}
+Batching
+BSS Magic groups services by target PC and calls this endpoint once per PC. See the LLD Section 7.2 for the per-PC design rationale.
+
+Governor impact: 0-1 SOQL, 1 DML statement (bulk update), 0 callouts.
+
+Error Responses
+Scenario
+
+HTTP Status
+
+Error Code
+
+Empty services array
+
+400
+
+INVALID_PARAMETER
+
+DML failure
+
+500
+
+PATCH_FAILED
+
+Orchestration not found
+
+404
+
+ORCHESTRATION_NOT_FOUND
+
+4. Release Hold
+Releases the orchestration hold by setting CSPOFA__Process_On_Hold__c = false. Called once after successful revalidation.
+
+Endpoint: POST /iot-qbs-orders/{orchestrationProcessId}/release
+
+Request
+Headers:
+
+
+
+Authorization: Bearer {access_token}
+Path Parameters:
+
+Parameter
+
+Type
+
+Required
+
+Description
+
+orchestrationProcessId
+
+String
+
+Yes
+
+Orchestration Process ID
+
+Example:
+
+
+
+curl -X POST \
+  "https://{instance}.salesforce.com/services/apexrest/api/v1/iot-qbs-orders/a1Bxx00000XYZ123/release" \
+  -H "Authorization: Bearer {access_token}"
+Success Response (200 OK)
+
+
+{
+  "success": true,
+  "orchestrationProcessId": "a1Bxx00000XYZ123",
+  "status": "RELEASED",
+  "already_released": false,
+  "message": "Orchestration hold released successfully"
+}
+If the orchestration is already released (not on hold), the endpoint returns 200 with "already_released": true rather than an error, making retries safe:
+
+
+
+{
+  "success": true,
+  "orchestrationProcessId": "a1Bxx00000XYZ123",
+  "status": "RELEASED",
+  "already_released": true,
+  "message": "Orchestration was already released"
+}
+Error Responses
+Scenario
+
+HTTP Status
+
+Error Code
+
+Orchestration not found
+
+404
+
+ORCHESTRATION_NOT_FOUND
+
+DML failure
+
+500
+
+RELEASE_FAILED
+
+Governor impact: 1 SOQL, 1 DML, 0 callouts.
+
+Governor Limit Analysis
+API
+
+Calls per Order
+
+SOQL
+
+DML
+
+Callouts
+
+Notes
+
+API
+
+Calls per Order
+
+SOQL
+
+DML
+
+Callouts
+
+Notes
+
+API 1 (GET discovery)
+
+1 (+ 1 revalidation)
+
+2-3
+
+0
+
+0
+
+Lightweight SOQL only
+
+API 2 (GET pc-data)
+
+N (once per PC, typically 2)
+
+0
+
+0
+
+2
+
+getOEData + getConfigurations
+
+API 3 (PUT services)
+
+N (once per PC with mismatches)
+
+0-1
+
+1
+
+0
+
+DML bounded per PC
+
+API 4 (POST release)
+
+1
+
+1
+
+1
+
+0
+
+Single record update
+
+Each per-PC call = separate Salesforce transaction = fresh 100 SOQL / 150 DML / 100 callout budget.
+
+Integration Flow
+Step-by-step BSS Magic workflow calling APIs in sequence:
+
+BSS Magic detects a held orchestration (via polling or webhook -- not via these APIs).
+
+API 1: GET /iot-qbs-orders/{orchestrationProcessId} -- receives PCs metadata and service summaries.
+
+API 2 (loop): For each PC from step 2, call GET /iot-qbs-orders/{id}/pc-data/{pcId}?guid=X&solutionId=Y -- receives OE + Config data for that PC.
+
+BSS Magic builds truth table, validates, constructs patch payload (all internal logic).
+
+API 3 (loop): For each PC with mismatches, call PUT /iot-qbs-orders/{id}/services with services grouped by target PC.
+
+API 1 (revalidation): GET /iot-qbs-orders/{orchestrationProcessId} -- reload to confirm all correct.
+
+API 4: POST /iot-qbs-orders/{id}/release -- release the hold.

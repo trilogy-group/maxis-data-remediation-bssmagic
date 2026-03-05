@@ -1,0 +1,52 @@
+/* Company branding animations - exact match from Angular app */
+@keyframes animationOne {
+  0% {
+    transform: none;
+  }
+  to {
+    transform: translateY(10%);
+  }
+}
+
+@keyframes animationTwo {
+  0% {
+    transform: none;
+  }
+  to {
+    transform: translateY(-10%);
+  }
+}
+
+@keyframes animationThree {
+  0% {
+    transform: none;
+  }
+  to {
+    transform: translateX(15%);
+  }
+}
+
+@keyframes animationFour {
+  0% {
+    transform: none;
+  }
+  to {
+    transform: translateX(-15%);
+  }
+}
+
+.animation-one {
+  animation: animationOne 3s cubic-bezier(0.455, 0.03, 0.515, 0.955) 0s infinite alternate;
+}
+
+.animation-two {
+  animation: animationTwo 3s cubic-bezier(0.455, 0.03, 0.515, 0.955) 0s infinite alternate;
+}
+
+.animation-three {
+  animation: animationThree 3.6s cubic-bezier(0.455, 0.03, 0.515, 0.955) 0s infinite alternate;
+}
+
+.animation-four {
+  animation: animationFour 3.6s cubic-bezier(0.455, 0.03, 0.515, 0.955) 0s infinite alternate;
+}

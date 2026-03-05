@@ -6,6 +6,7 @@ import { StatusBadge } from '../Dashboard/StatusBadge';
 import { CategoryBadge } from '../Dashboard/CategoryBadge';
 import { CardLoader, Spinner } from '../Dashboard/Loader';
 import { cn } from '../../lib/utils';
+import { downloadCSV } from '../../lib/csv-export';
 
 interface RemediationTimelineStep {
   action: string;
@@ -356,14 +357,50 @@ export function ServiceProblemsModule({ filterCategory }: ServiceProblemsModuleP
             </p>
           )}
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 dark:bg-indigo-500 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          {isFetching && <Spinner size="sm" className="text-white" />}
-          Check for New Issues
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (filteredProblems.length === 0) return;
+              const getChar = (sp: ServiceProblem, name: string) =>
+                (sp.characteristic?.find(c => c.name === name)?.value as string) ?? '';
+              const rows = filteredProblems.map(p => ({
+                id: p.id ?? '',
+                status: p.status ?? '',
+                category: p.category ?? '',
+                priority: p.priority ?? '',
+                description: p.description ?? '',
+                affectedResource: p.affectedResource?.[0]?.name || p.affectedResource?.[0]?.id || '',
+                serviceId: getChar(p, 'serviceId'),
+                serviceType: getChar(p, 'serviceType'),
+                missingFields: getChar(p, 'missingFields'),
+                fieldsPatched: getChar(p, 'fieldsPatched'),
+                triggeredBy: getChar(p, 'triggeredBy'),
+                remediationState: getChar(p, 'remediationState'),
+                remediationDuration: getChar(p, 'remediationDuration'),
+                detectedAt: getChar(p, 'detectedAt'),
+                resolvedAt: getChar(p, 'resolvedAt'),
+                creationDate: p.creationDate ?? '',
+                resolutionDate: p.resolutionDate ?? '',
+                statusChangeReason: p.reason ?? '',
+              }));
+              const ts = new Date().toISOString().slice(0, 10);
+              downloadCSV(rows, `remediation-history-${ts}.csv`);
+            }}
+            disabled={filteredProblems.length === 0}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </button>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 dark:bg-indigo-500 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isFetching && <Spinner size="sm" className="text-white" />}
+            Check for New Issues
+          </button>
+        </div>
       </div>
       
       {/* Status Filter Buttons */}

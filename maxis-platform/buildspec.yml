@@ -1,0 +1,31 @@
+version: 0.2
+
+env:
+  variables:
+    ECR_REPO: "652413721990.dkr.ecr.ap-southeast-1.amazonaws.com/bssmagic-maxis-platform"
+    IMAGE_TAG: "latest"
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to ECR...
+      - aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 652413721990.dkr.ecr.ap-southeast-1.amazonaws.com
+      - echo Copying knowledge files into build context...
+      - cp -r ../ontology-discovery-agent/knowledge ./knowledge 2>/dev/null || mkdir -p ./knowledge/tribal ./knowledge/detections
+  build:
+    commands:
+      - echo Building Docker image...
+      - docker build -t $ECR_REPO:$IMAGE_TAG .
+      - docker tag $ECR_REPO:$IMAGE_TAG $ECR_REPO:$(date +%Y%m%d-%H%M%S)
+  post_build:
+    commands:
+      - echo Pushing to ECR...
+      - docker push $ECR_REPO:$IMAGE_TAG
+      - docker push $ECR_REPO:$(docker images --format '{{.Tag}}' $ECR_REPO | grep -v latest | head -1)
+      - echo Build complete.
+      - printf '{"ImageURI":"%s"}' $ECR_REPO:$IMAGE_TAG > imageDetail.json
+
+artifacts:
+  files:
+    - imageDetail.json
+    - task-definition.json

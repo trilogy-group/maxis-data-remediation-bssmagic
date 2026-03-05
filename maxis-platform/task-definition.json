@@ -1,0 +1,46 @@
+{
+  "family": "bssmagic-maxis-platform",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::652413721990:role/bssmagic-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::652413721990:role/bssmagic-task-role",
+  "containerDefinitions": [
+    {
+      "name": "maxis-platform",
+      "image": "652413721990.dkr.ecr.ap-southeast-1.amazonaws.com/bssmagic-maxis-platform:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "3000" },
+        { "name": "HOSTNAME", "value": "0.0.0.0" },
+        { "name": "ALB_URL", "value": "http://bssmagic-alb-526861445.ap-southeast-1.elb.amazonaws.com" },
+        { "name": "API_KEY", "value": "YOUR_API_KEY_HERE" },
+        { "name": "KNOWLEDGE_DIR", "value": "/app/knowledge" },
+        { "name": "SF_LOGIN_URL", "value": "https://test.salesforce.com" },
+        { "name": "SF_USERNAME", "value": "YOUR_SF_USERNAME" },
+        { "name": "SF_PASSWORD", "value": "YOUR_SF_PASSWORD" },
+        { "name": "SF_SECURITY_TOKEN", "value": "YOUR_SF_SECURITY_TOKEN" },
+        { "name": "ANTHROPIC_API_KEY", "value": "YOUR_ANTHROPIC_API_KEY" },
+        { "name": "SESSION_SECRET", "value": "YOUR_SESSION_SECRET_MINIMUM_32_CHARS" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/bssmagic-maxis-platform",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
