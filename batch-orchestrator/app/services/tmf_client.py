@@ -6,6 +6,7 @@ This keeps the architecture clean (Layer 2 → Layer 1).
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -235,13 +236,16 @@ class TMFClient:
         status: str,
         remediation_state: str,
         reason: str = "",
+        fields_patched: list[str] | None = None,
+        unresolved_fields: list[str] | None = None,
+        triggered_by: str | None = None,
+        remediation_duration: float | None = None,
     ) -> dict:
         """
-        Update a ServiceProblem's status and remediationState characteristic.
+        Update a ServiceProblem's status, remediationState, and audit trail.
         
         Strategy: GET current state, merge changes, PATCH once with everything.
         """
-        # Step 1: GET the current service problem to read its characteristics
         with self._client() as client:
             resp = client.get(
                 f"/tmf-api/serviceProblemManagement/v5/serviceProblem/{problem_id}",
@@ -250,7 +254,6 @@ class TMFClient:
             resp.raise_for_status()
             current = resp.json()
 
-        # Step 2: Build merged characteristic array
         existing_chars = current.get("characteristic", [])
         if isinstance(existing_chars, str):
             try:
@@ -260,27 +263,29 @@ class TMFClient:
         if not isinstance(existing_chars, list):
             existing_chars = []
 
-        updated = False
-        merged_chars = []
-        for c in existing_chars:
-            if isinstance(c, dict) and c.get("name") == "remediationState":
-                merged_chars.append({
-                    "@type": "StringCharacteristic",
-                    "name": "remediationState",
-                    "value": remediation_state,
-                })
-                updated = True
-            else:
-                merged_chars.append(c)
+        overwrite_keys = {"remediationState", "fieldsPatched", "unresolvedFields", "enrichmentStatus", "triggeredBy", "remediationDuration", "resolvedAt"}
+        merged_chars = [c for c in existing_chars if isinstance(c, dict) and c.get("name") not in overwrite_keys]
 
-        if not updated:
-            merged_chars.append({
-                "@type": "StringCharacteristic",
-                "name": "remediationState",
-                "value": remediation_state,
-            })
+        merged_chars.append({"@type": "StringCharacteristic", "name": "remediationState", "value": remediation_state})
 
-        # Step 3: PATCH status first (simple field, always works)
+        if fields_patched:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "fieldsPatched", "value": ",".join(fields_patched)})
+        if unresolved_fields:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "unresolvedFields", "value": ",".join(unresolved_fields)})
+            enrichment = "none" if not fields_patched else "partial"
+        elif fields_patched:
+            enrichment = "full"
+        else:
+            enrichment = None
+        if enrichment:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "enrichmentStatus", "value": enrichment})
+        if triggered_by:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "triggeredBy", "value": triggered_by})
+        if remediation_duration is not None:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "remediationDuration", "value": f"{remediation_duration:.1f}"})
+        if status == "resolved":
+            merged_chars.append({"@type": "StringCharacteristic", "name": "resolvedAt", "value": datetime.now(timezone.utc).isoformat()})
+
         patch: dict[str, Any] = {"status": status}
         if reason:
             patch["statusChangeReason"] = reason
@@ -294,10 +299,8 @@ class TMFClient:
             resp.raise_for_status()
             result = resp.json()
 
-        # Step 4: PATCH characteristics separately (array field)
         try:
             char_payload = {"characteristic": merged_chars}
-            logger.info(f"PATCH characteristic for {problem_id}: {len(merged_chars)} entries, payload={json.dumps(char_payload)[:500]}")
             with self._client() as client:
                 resp = client.patch(
                     f"/tmf-api/serviceProblemManagement/v5/serviceProblem/{problem_id}",
@@ -306,7 +309,6 @@ class TMFClient:
                 )
                 resp.raise_for_status()
                 result = resp.json()
-                logger.info(f"Updated characteristic for {problem_id}: response has {len(result.get('characteristic', []))} entries")
         except Exception as e:
             logger.warning(f"Could not update characteristic for {problem_id}: {e}")
 
@@ -490,19 +492,37 @@ class TMFClient:
         service_id: str,
         service_type: str,
         missing_fields: list[str],
+        present_fields: dict[str, str] | None = None,
+        product_definition_name: str | None = None,
     ) -> dict:
         """Create a ServiceProblem record for a detected 1867 service."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        characteristics = [
+            {"@type": "StringCharacteristic", "name": "serviceId", "value": service_id},
+            {"@type": "StringCharacteristic", "name": "serviceType", "value": service_type},
+            {"@type": "StringCharacteristic", "name": "remediationState", "value": "DETECTED"},
+            {"@type": "StringCharacteristic", "name": "missingFields", "value": ",".join(missing_fields)},
+            {"@type": "StringCharacteristic", "name": "detectedAt", "value": now_iso},
+        ]
+        if present_fields:
+            characteristics.append({
+                "@type": "StringCharacteristic",
+                "name": "presentFields",
+                "value": ",".join(f"{k}={v}" for k, v in present_fields.items()),
+            })
+        if product_definition_name:
+            characteristics.append({
+                "@type": "StringCharacteristic",
+                "name": "productDefinitionName",
+                "value": product_definition_name,
+            })
+
         payload = {
             "category": "PartialDataMissing",
             "status": "pending",
             "description": f"OE partial data missing for {service_type} service {service_id}",
             "priority": "medium",
-            "characteristic": [
-                {"@type": "StringCharacteristic", "name": "serviceId", "value": service_id},
-                {"@type": "StringCharacteristic", "name": "serviceType", "value": service_type},
-                {"@type": "StringCharacteristic", "name": "remediationState", "value": "DETECTED"},
-                {"@type": "StringCharacteristic", "name": "missingFields", "value": ",".join(missing_fields)},
-            ],
+            "characteristic": characteristics,
         }
         with self._client() as client:
             resp = client.post(

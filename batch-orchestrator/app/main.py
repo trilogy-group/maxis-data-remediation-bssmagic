@@ -607,6 +607,145 @@ async def oe_remediate_single(
     )
 
 
+# =============================================================================
+# IoT QBS Endpoints (Module 3 - Service-to-PC Mismatch)
+# =============================================================================
+
+from .models.schemas import (
+    IoTQBSDetectRequest,
+    IoTQBSDetectResponse,
+    IoTQBSOrchestrationSummary,
+    IoTQBSSingleRemediateRequest,
+    IoTQBSSingleRemediateResponse,
+    IoTQBSBatchRemediateRequest,
+    IoTQBSBatchRemediateResponse,
+    IoTQBSBatchSummary,
+    IoTQBSRemediationState,
+)
+from .services.iot_qbs_orchestrator import IoTQBSOrchestrator
+
+
+@router.post("/iot-qbs/detect", response_model=IoTQBSDetectResponse)
+async def iot_qbs_detect(request: IoTQBSDetectRequest = IoTQBSDetectRequest()):
+    """
+    Discover held IoT orchestrations via Salesforce SOQL + Apex API 1.
+
+    For each held orchestration, calls API 1 (discovery) and API 2 (per-PC data)
+    to get a quick mismatch count and safety check.
+    """
+    orchestrator = IoTQBSOrchestrator()
+    try:
+        raw = await asyncio.to_thread(
+            orchestrator.detect_held_orchestrations, request.max_count
+        )
+        summaries = [IoTQBSOrchestrationSummary(**r) for r in raw]
+        return IoTQBSDetectResponse(
+            orchestrations=summaries,
+            total_found=len(summaries),
+        )
+    except Exception as e:
+        logger.error(f"IoT QBS detection failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Detection failed: {e}")
+    finally:
+        orchestrator.close()
+
+
+@router.post(
+    "/iot-qbs/remediate/{orchestration_process_id}",
+    response_model=IoTQBSSingleRemediateResponse,
+)
+async def iot_qbs_remediate_single(
+    orchestration_process_id: str,
+    request: IoTQBSSingleRemediateRequest = IoTQBSSingleRemediateRequest(),
+):
+    """
+    Remediate a single IoT QBS orchestration through the 7-step flow.
+
+    Steps: RECEIVED -> LOADING_DATA -> VALIDATING -> SAFE_TO_PATCH
+           -> PATCHING -> REVALIDATING -> RELEASING -> RELEASED
+
+    Use dry_run=true to validate and build payloads without actually patching.
+    """
+    if not orchestration_process_id or len(orchestration_process_id) < 10:
+        raise HTTPException(status_code=400, detail="Invalid orchestration process ID")
+
+    orchestrator = IoTQBSOrchestrator()
+    try:
+        result = await asyncio.to_thread(
+            orchestrator.remediate_single,
+            orchestration_process_id,
+            dry_run=request.dry_run,
+        )
+        success = result.final_state == IoTQBSRemediationState.RELEASED
+        msg = (
+            f"Released orchestration {orchestration_process_id}"
+            if success
+            else f"Failed at {result.failure_stage or result.final_state.value}: "
+                 f"{result.error or ''}"
+        )
+        return IoTQBSSingleRemediateResponse(
+            success=success,
+            result=result,
+            message=msg,
+        )
+    except Exception as e:
+        logger.error(f"IoT QBS remediation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Remediation failed: {e}")
+    finally:
+        orchestrator.close()
+
+
+@router.post("/iot-qbs/remediate", response_model=IoTQBSBatchRemediateResponse)
+async def iot_qbs_remediate_batch(
+    request: IoTQBSBatchRemediateRequest = IoTQBSBatchRemediateRequest(),
+):
+    """
+    Batch-remediate multiple IoT QBS orchestrations.
+
+    If orchestration_ids is empty, auto-detects held orchestrations first.
+    Processes each sequentially through the 7-step flow.
+    """
+    orchestrator = IoTQBSOrchestrator()
+    try:
+        orch_ids = request.orchestration_ids
+
+        if not orch_ids:
+            raw = await asyncio.to_thread(
+                orchestrator.detect_held_orchestrations,
+                request.max_count or 50,
+            )
+            orch_ids = [r["orchestration_process_id"] for r in raw]
+
+        if request.max_count:
+            orch_ids = orch_ids[: request.max_count]
+
+        results = []
+        summary = IoTQBSBatchSummary(total=len(orch_ids))
+
+        for oid in orch_ids:
+            result = await asyncio.to_thread(
+                orchestrator.remediate_single, oid, dry_run=request.dry_run
+            )
+            results.append(result)
+            if result.final_state == IoTQBSRemediationState.RELEASED:
+                summary.released += 1
+            elif result.final_state == IoTQBSRemediationState.FAILED:
+                summary.failed += 1
+            else:
+                summary.pending += 1
+
+        return IoTQBSBatchRemediateResponse(
+            message=f"Processed {len(results)} orchestrations",
+            results=results,
+            summary=summary,
+        )
+    except Exception as e:
+        logger.error(f"IoT QBS batch remediation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Batch remediation failed: {e}")
+    finally:
+        orchestrator.close()
+
+
 @router.post("/scheduler/start")
 async def start_scheduler():
     """Start the automatic scheduler loop."""

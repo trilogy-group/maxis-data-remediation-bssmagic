@@ -187,7 +187,14 @@ class OEExecutor:
         try:
             oe_json = json.loads(attachment_content)
         except json.JSONDecodeError as e:
-            return self._fail(service_id, "PARSE", f"Invalid JSON: {e}", start)
+            return OEResult(
+                service_id=service_id,
+                service_name=service_name,
+                final_state=OERemediationState.ATTACHMENT_CORRUPT,
+                failure_stage="PARSE",
+                error=f"Attachment not valid JSON: {e}",
+                duration_seconds=time.time() - start,
+            )
 
         # -----------------------------------------------------------------
         # Step 2: Analyze + Patch in memory
@@ -220,12 +227,18 @@ class OEExecutor:
         fields_to_patch = _build_patch_instructions(
             missing, service_type, enrichment_data
         )
+        patchable_names = [p["fieldName"] for p in fields_to_patch]
+        unresolved = [f for f in missing if f not in patchable_names]
 
         if not fields_to_patch:
-            return self._fail(
-                service_id, "ENRICH",
-                f"Missing fields {missing} but no enrichment data available",
-                start,
+            return OEResult(
+                service_id=service_id,
+                service_name=service_name,
+                service_type=service_type,
+                final_state=OERemediationState.ENRICHMENT_UNAVAILABLE,
+                unresolved_fields=missing,
+                error=f"Enrichment unavailable for: {', '.join(missing)}",
+                duration_seconds=time.time() - start,
             )
 
         # Apply patches to JSON (SET_IF_EMPTY semantics)
@@ -248,6 +261,7 @@ class OEExecutor:
                 service_type=service_type,
                 final_state=OERemediationState.VALIDATED,
                 fields_patched=patched_field_names,
+                unresolved_fields=unresolved,
                 duration_seconds=time.time() - start,
             )
 
@@ -282,12 +296,17 @@ class OEExecutor:
                 start,
             )
 
+        final_state = (
+            OERemediationState.PARTIALLY_REMEDIATED if unresolved
+            else OERemediationState.REMEDIATED
+        )
         return OEResult(
             service_id=service_id,
             service_name=service_name,
             service_type=service_type,
-            final_state=OERemediationState.REMEDIATED,
+            final_state=final_state,
             fields_patched=patched_field_names,
+            unresolved_fields=unresolved,
             duration_seconds=time.time() - start,
         )
 

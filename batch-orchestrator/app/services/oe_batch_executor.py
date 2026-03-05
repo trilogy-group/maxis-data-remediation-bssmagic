@@ -113,6 +113,12 @@ class OEBatchExecutor:
             # Update summary counts
             if result.final_state == OERemediationState.REMEDIATED:
                 self.summary.remediated += 1
+            elif result.final_state == OERemediationState.PARTIALLY_REMEDIATED:
+                self.summary.partially_remediated += 1
+            elif result.final_state == OERemediationState.ENRICHMENT_UNAVAILABLE:
+                self.summary.enrichment_unavailable += 1
+            elif result.final_state == OERemediationState.ATTACHMENT_CORRUPT:
+                self.summary.attachment_corrupt += 1
             elif result.final_state == OERemediationState.NOT_IMPACTED:
                 self.summary.not_impacted += 1
             elif result.final_state == OERemediationState.SKIPPED:
@@ -121,13 +127,24 @@ class OEBatchExecutor:
                 self.summary.failed += 1
             self.summary.pending -= 1
 
-            # Update ServiceProblem based on result
             sp_status = _sp_status_from_result(result)
             sp_state = result.final_state.value
-            sp_reason = result.error or (
-                f"Patched: {', '.join(result.fields_patched)}" if result.fields_patched else ""
+            if result.error:
+                sp_reason = result.error
+            elif result.fields_patched and result.unresolved_fields:
+                sp_reason = f"Partial: patched {', '.join(result.fields_patched)}; unresolved {', '.join(result.unresolved_fields)}"
+            elif result.fields_patched:
+                sp_reason = f"Patched: {', '.join(result.fields_patched)}"
+            else:
+                sp_reason = ""
+            trigger = f"scheduled-batch:{self.job_id}" if self.job_id else "manual"
+            self._update_service_problem(
+                sp_id, sp_status, sp_state, sp_reason,
+                fields_patched=result.fields_patched or None,
+                unresolved_fields=result.unresolved_fields or None,
+                triggered_by=trigger,
+                remediation_duration=result.duration_seconds if result.duration_seconds > 0 else None,
             )
-            self._update_service_problem(sp_id, sp_status, sp_state, sp_reason)
 
             # Update BatchJob with progress
             self._update_job({
@@ -136,12 +153,11 @@ class OEBatchExecutor:
                 "x_summary": json.dumps(self.summary.model_dump()),
             })
 
-        # Final job update
+        # Final job update -- always "completed" if we processed everything;
+        # individual failures are tracked in summary, not in job state
         final_state = "completed"
         if self._cancelled:
             final_state = "cancelled"
-        elif self.summary.failed > 0 and self.summary.remediated == 0:
-            final_state = "failed"
 
         self._update_job({
             "state": final_state,
@@ -172,11 +188,21 @@ class OEBatchExecutor:
         status: str,
         remediation_state: str,
         reason: str = "",
+        fields_patched: list[str] | None = None,
+        unresolved_fields: list[str] | None = None,
+        triggered_by: str | None = None,
+        remediation_duration: float | None = None,
     ):
         if not sp_id:
             return
         try:
-            self.tmf.update_service_problem(sp_id, status, remediation_state, reason)
+            self.tmf.update_service_problem(
+                sp_id, status, remediation_state, reason,
+                fields_patched=fields_patched,
+                unresolved_fields=unresolved_fields,
+                triggered_by=triggered_by,
+                remediation_duration=remediation_duration,
+            )
         except Exception as e:
             logger.warning(f"Failed to update ServiceProblem {sp_id}: {e}")
 
@@ -187,6 +213,12 @@ def _sp_status_from_result(result: OEResult) -> str:
         return "resolved"
     if result.final_state in (OERemediationState.NOT_IMPACTED, OERemediationState.SKIPPED):
         return "closed"
-    if result.final_state == OERemediationState.FAILED:
+    if result.final_state == OERemediationState.ATTACHMENT_CORRUPT:
+        return "rejected"
+    if result.final_state in (
+        OERemediationState.FAILED,
+        OERemediationState.PARTIALLY_REMEDIATED,
+        OERemediationState.ENRICHMENT_UNAVAILABLE,
+    ):
         return "pending"
     return "inProgress"
