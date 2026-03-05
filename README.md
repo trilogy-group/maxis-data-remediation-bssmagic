@@ -14,7 +14,8 @@ BSS Magic Runtime translates CloudSense business objects into TM Forum (TMF) sta
 
 - **Runtime**: PostgreSQL + TMF Server + Salesforce FDW (AWS ECS)
 - **Batch Orchestrator**: Unified remediation service for manual and scheduled operations (Python FastAPI)
-- **Dashboard**: Next.js monitoring UI (React + TanStack Query)
+- **Modern Dashboard**: Vite + React monitoring UI (`docs/bss-magic-app-template`)
+- **Maxis Platform**: Next.js app for Maxis-specific capabilities (`maxis-platform`)
 - **CloudSense JS Gateway**: Browser automation for CloudSense operations (optional)
 
 ## Quick Start
@@ -44,9 +45,9 @@ See [AWS Runtime Access Guide](docs/5_AWS_Runtime_Access_Guide.md) for:
 Before starting services, configure environment variables:
 
 ```bash
-# Dashboard
-cp dashboard/.env.example dashboard/.env.local
-# Edit dashboard/.env.local with your TMF API URL and settings
+# Modern Dashboard (Vite + React)
+cp docs/bss-magic-app-template/.env.example docs/bss-magic-app-template/.env.local
+# Edit with your TMF API URL and settings
 
 # Batch Orchestrator
 cp batch-orchestrator/.env.example batch-orchestrator/.env
@@ -70,14 +71,21 @@ cp gateways/cloudsense-js-gateway/.env.example gateways/cloudsense-js-gateway/.e
    CREDENTIALS_FILE=./credentials.zip docker compose up
    ```
 
-2. **Start Dashboard**
+2. **Start Modern Dashboard**
    ```bash
-   cd dashboard
+   cd docs/bss-magic-app-template
+   npm install
+   npm run dev  # http://localhost:5173
+   ```
+
+3. **Start Maxis Platform (optional)**
+   ```bash
+   cd maxis-platform
    npm install
    npm run dev  # http://localhost:3000
    ```
 
-3. **Start Batch Orchestrator**
+4. **Start Batch Orchestrator**
    ```bash
    # Batch Orchestrator (autonomous remediation)
    cd batch-orchestrator
@@ -124,6 +132,11 @@ PostgreSQL FDW translates SQL queries into Salesforce SOQL:
 ### Custom Views
 SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are ephemeral and must be redeployed after ECS restart.
 
+### Active Remediation Modules
+- **Module 1867**: OE Data Patching - Enriches Order Entry fields (PICEmail, BillingAccount, ReservedNumber)
+- **Module 1147**: Solution Empty - Remediates empty solution references
+- **Module IoT QBS**: Quasi-Bundled Service - Creates missing DigitalProducts for IoT services
+
 ## Architecture
 
 ```
@@ -132,7 +145,8 @@ SQL views in `runtime/views/` map CloudSense objects to TMF entities. Views are 
                     └────────┬────────┘
                              │
                     ┌────────▼────────────┐
-                    │  Dashboard (3000)   │
+                    │ Modern Dashboard    │
+                    │    (Vite 5173)      │
                     └─┬─────────────────┬─┘
                       │                 │
         READ OPS      │                 │      WRITE/REMEDIATION OPS

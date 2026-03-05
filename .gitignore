@@ -68,7 +68,15 @@ temp/
 *.mp3
 *.pdf
 *.dmg
-*.gif
+
+# Large images and design files
+*.psd
+*.eps
+*.ai
+docs/**/assets/img/*.png
+!docs/**/assets/img/*-icon*.png
+!docs/**/assets/img/*-logo*.png
+maxis*.json
 
 # Build Artifacts
 *.sst
