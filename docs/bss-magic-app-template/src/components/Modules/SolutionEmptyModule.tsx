@@ -664,7 +664,7 @@ export function SolutionEmptyModule() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              Solution Empty Validator
+              Solution Remediation Validator
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Use Case 1147 • Detected by BSS Magic – Solution Validator
@@ -874,7 +874,7 @@ export function SolutionEmptyModule() {
                   No Active Issues
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  All Solution Empty issues have been resolved.
+                  All Solution Remediation issues have been resolved.
                 </p>
               </>
             )}
@@ -1544,7 +1544,7 @@ function SolutionRow({
                     <dl className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <dt className="text-slate-500 dark:text-slate-400">Use Case</dt>
-                        <dd className="text-slate-900 dark:text-slate-100">{issue.useCase} – Solution Empty</dd>
+                        <dd className="text-slate-900 dark:text-slate-100">{issue.useCase} – Solution Remediation</dd>
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-slate-500 dark:text-slate-400">Detection Source</dt>
@@ -1952,7 +1952,7 @@ function LoadingState() {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <RefreshCw className="w-8 h-8 text-slate-400 animate-spin mb-4" />
-      <p className="text-slate-500 dark:text-slate-400">Loading Solution Empty data...</p>
+      <p className="text-slate-500 dark:text-slate-400">Loading Solution Remediation data...</p>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 import { cn } from '../../lib/utils';
 import { CategoryHealthCard } from './CategoryHealthCard';
 import { useHealthDashboard, useRefreshHealthData } from '../../services/healthMetrics/hooks';
+import { isHealthCategoryEnabled } from '../../stores/featureFlags';
 import type { HealthDashboardData } from '../../types/health-metrics';
 
 interface HealthTrendsDashboardProps {
@@ -74,8 +75,9 @@ export function HealthTrendsDashboard({ className, onNavigateToModule }: HealthT
     return <EmptyState />;
   }
 
-  const alertCount = data.categories.filter(c => c.hasAlert).length;
-  const totalActive = data.categories.reduce((sum, c) => sum + c.activeCount, 0);
+  const visibleCategories = data.categories.filter(c => isHealthCategoryEnabled(c.categoryId));
+  const alertCount = visibleCategories.filter(c => c.hasAlert).length;
+  const totalActive = visibleCategories.reduce((sum, c) => sum + c.activeCount, 0);
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -124,8 +126,13 @@ export function HealthTrendsDashboard({ className, onNavigateToModule }: HealthT
       />
 
       {/* Category Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {data.categories.map((category, index) => (
+      <div className={cn(
+        'grid gap-4',
+        visibleCategories.length === 1 ? 'grid-cols-1 max-w-md' :
+        visibleCategories.length <= 2 ? 'grid-cols-1 md:grid-cols-2' :
+        'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+      )}>
+        {visibleCategories.map((category, index) => (
           <CategoryHealthCard
             key={category.categoryId}
             metrics={category}
