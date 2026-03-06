@@ -240,6 +240,7 @@ class TMFClient:
         unresolved_fields: list[str] | None = None,
         triggered_by: str | None = None,
         remediation_duration: float | None = None,
+        remediation_timeline: list | None = None,
     ) -> dict:
         """
         Update a ServiceProblem's status, remediationState, and audit trail.
@@ -263,7 +264,7 @@ class TMFClient:
         if not isinstance(existing_chars, list):
             existing_chars = []
 
-        overwrite_keys = {"remediationState", "fieldsPatched", "unresolvedFields", "enrichmentStatus", "triggeredBy", "remediationDuration", "resolvedAt"}
+        overwrite_keys = {"remediationState", "fieldsPatched", "unresolvedFields", "enrichmentStatus", "triggeredBy", "remediationDuration", "resolvedAt", "remediationTimeline"}
         merged_chars = [c for c in existing_chars if isinstance(c, dict) and c.get("name") not in overwrite_keys]
 
         merged_chars.append({"@type": "StringCharacteristic", "name": "remediationState", "value": remediation_state})
@@ -285,6 +286,8 @@ class TMFClient:
             merged_chars.append({"@type": "StringCharacteristic", "name": "remediationDuration", "value": f"{remediation_duration:.1f}"})
         if status == "resolved":
             merged_chars.append({"@type": "StringCharacteristic", "name": "resolvedAt", "value": datetime.now(timezone.utc).isoformat()})
+        if remediation_timeline is not None:
+            merged_chars.append({"@type": "StringCharacteristic", "name": "remediationTimeline", "value": json.dumps(remediation_timeline)})
 
         patch: dict[str, Any] = {"status": status}
         if reason:

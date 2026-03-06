@@ -109,8 +109,8 @@ export const CATEGORY_CONFIGS: CategoryConfig[] = [
   },
   {
     id: 'solution-empty',
-    name: 'Solution Empty',
-    description: 'Solutions with no products or services attached (1147)',
+    name: 'Solution Remediation',
+    description: 'Solutions with no products or services attached',
     icon: 'Package',
     color: 'yellow',
   },
