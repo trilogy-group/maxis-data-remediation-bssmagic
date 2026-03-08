@@ -1,11 +1,10 @@
-# Combined Container: TS Dashboard + 1147-Gateway + CloudSense JS Gateway + Batch Orchestrator
+# Combined Container: TS Dashboard + CloudSense JS Gateway + Batch Orchestrator
 # Uses supervisord to manage multiple processes
 #
 # Ports:
 #   - 3000: TypeScript Dashboard (Next.js)
 #   - 8080: CloudSense JS Gateway (FastAPI + Playwright)
-#   - 8081: 1147-Gateway (FastAPI + Apex)
-#   - 8082: Batch Orchestrator (FastAPI)
+#   - 8082: Batch Orchestrator (FastAPI - handles 1147, 1867, IoT QBS)
 
 # ============================================
 # Stage 1: Build TypeScript Dashboard
@@ -49,10 +48,6 @@ WORKDIR /app
 # Install Python dependencies
 # ============================================
 
-# 1147-Gateway
-COPY 1147-gateway/requirements.txt /app/1147-gateway/requirements.txt
-RUN pip install --no-cache-dir -r /app/1147-gateway/requirements.txt
-
 # CloudSense JS Gateway
 COPY cloudsense-js-gateway/requirements.txt /app/cloudsense-js-gateway/requirements.txt
 RUN pip install --no-cache-dir -r /app/cloudsense-js-gateway/requirements.txt
@@ -69,9 +64,6 @@ RUN pip install playwright && \
 # ============================================
 # Copy application code
 # ============================================
-
-# Copy 1147-Gateway
-COPY 1147-gateway/app /app/1147-gateway/app
 
 # Copy CloudSense JS Gateway
 COPY cloudsense-js-gateway/*.py /app/cloudsense-js-gateway/
@@ -114,11 +106,11 @@ ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_PATH=/usr/bin/chromium
 
 # Expose all ports
-EXPOSE 3000 8080 8081 8082
+EXPOSE 3000 8080 8082
 
-# Health check
+# Health check - check batch-orchestrator instead of legacy 1147-gateway
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8081/health || exit 1
+    CMD curl -f http://localhost:8082/health || exit 1
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
