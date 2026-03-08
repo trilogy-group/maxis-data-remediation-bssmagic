@@ -158,13 +158,11 @@ bss-magic-runtime-clean/
 │   ├── fdw/                     # Foreign Data Wrapper configs
 │   └── tests/                   # API tests
 │
-├── batch-orchestrator/          # Autonomous remediation service
+├── batch-orchestrator/          # Unified remediation service (1147, 1867, IoT QBS)
 │   ├── app/                     # FastAPI application
 │   └── tests/                   # Unit & integration tests
 │
-├── gateways/                    # Remediation gateways
-│   ├── 1147-gateway/            # Apex-based remediation
-│   └── cloudsense-js-gateway/   # Browser automation
+├── cloudsense-js-gateway/       # Browser automation (fallback)
 │
 ├── dashboard/                   # Next.js monitoring UI
 │   ├── src/                     # React components & API routes
@@ -192,8 +190,8 @@ bss-magic-runtime-clean/
 - **ECS Cluster**: bssmagic-cluster
 - **ALB URL**: http://bssmagic-alb-526861445.ap-southeast-1.elb.amazonaws.com
 - **Dashboard Port**: 3000
-- **1147-Gateway Port**: 8081
-- **Batch Orchestrator Port**: 8082
+- **Batch Orchestrator Port**: 8082 (unified remediation for all modules)
+- **CloudSense JS Gateway Port**: 8080 (fallback only)
 
 ---
 

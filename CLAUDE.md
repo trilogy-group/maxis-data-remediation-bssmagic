@@ -275,7 +275,7 @@ PGPASSWORD=admin psql -h localhost -U admin -d bssmagic_runtime
 - `/aws-deployment/cloudformation/infrastructure.yaml` - Complete AWS infrastructure
 
 ### Credentials (Do NOT commit)
-- `/1147-gateway/.env` - Salesforce credentials for 1147-Gateway
+- `/batch-orchestrator/.env` - Batch Orchestrator configuration
 - `/cloudsense-js-gateway/.env` - Salesforce credentials for JS Gateway
 - `vlad-runtime-credentials.zip` - Runtime authentication bundle (x.509 certs)
 
@@ -307,22 +307,22 @@ cd ..
 ./scripts/deploy-dashboard.sh
 ```
 
-### Testing 1147-Gateway Remediation
+### Testing Batch Orchestrator Remediation
 ```bash
-# Start gateway locally
-cd 1147-gateway
+# Start orchestrator locally
+cd batch-orchestrator
 python -m app.main
 
 # Test health
-curl http://localhost:8081/health
+curl http://localhost:8082/health
 
 # Test remediation (Swagger UI)
-open http://localhost:8081/docs
+open http://localhost:8082/docs
 
-# Or use curl
-curl -X POST http://localhost:8081/api/1147/remediate-full \
+# Or use curl - Unified remediation endpoint (Module 1147, 1867, IoT QBS)
+curl -X POST http://localhost:8082/remediate/a246D000000pOYsQAM \
   -H "Content-Type: application/json" \
-  -d '{"solutionId": "a246D000000pOYsQAM"}'
+  -d '{"dry_run": false}'
 ```
 
 ## TMF Standards Reference
@@ -372,8 +372,8 @@ Example: `/tmf-api/serviceInventoryManagement/v5/service`
 |------|---------|---------|
 | 3000 | TypeScript Dashboard | Main UI |
 | 8000 | TMF Server | TMF REST APIs |
-| 8080 | CloudSense JS Gateway | Browser automation for OE |
-| 8081 | 1147-Gateway | Apex-based remediation |
+| 8080 | CloudSense JS Gateway | Browser automation (fallback) |
+| 8082 | Batch Orchestrator | Unified remediation (1147, 1867, IoT QBS) |
 | 5432 | PostgreSQL | Database (internal only) |
 
 ## Additional Notes

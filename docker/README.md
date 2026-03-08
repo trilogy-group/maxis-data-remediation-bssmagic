@@ -7,12 +7,13 @@ This folder contains Docker configuration for deploying the BSS Magic middleware
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              COMBINED CONTAINER                              │
-│  ┌─────────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │  TS Dashboard   │  │ 1147-Gateway│  │   JS Gateway    │  │
-│  │    (Next.js)    │  │  (FastAPI)  │  │ (FastAPI+Play)  │  │
-│  │    Port 3000    │  │  Port 8081  │  │   Port 8080     │  │
-│  └─────────────────┘  └─────────────┘  └─────────────────┘  │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────┐  │
+│  │  TS Dashboard   │  │Batch Orchestrator│  │ JS Gateway │  │
+│  │    (Next.js)    │  │    (FastAPI)     │  │ (Fallback) │  │
+│  │    Port 3000    │  │    Port 8082     │  │ Port 8080  │  │
+│  └─────────────────┘  └──────────────────┘  └────────────┘  │
 │                                                              │
+│  Batch Orchestrator: Unified remediation (1147, 1867, IoT)  │
 │                     supervisord                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -55,8 +56,8 @@ docker-compose -f docker/docker-compose.yml up -d --build
 ```bash
 # Check all services are healthy
 curl http://localhost:3000/api/health    # TS Dashboard
-curl http://localhost:8081/health        # 1147-Gateway
-curl http://localhost:8080/health        # JS Gateway (if available)
+curl http://localhost:8082/health        # Batch Orchestrator
+curl http://localhost:8080/health        # JS Gateway (fallback)
 ```
 
 ## AWS Deployment
@@ -90,8 +91,8 @@ Configure Application Load Balancer with these target groups:
 | Port | Path | Service |
 |------|------|---------|
 | 3000 | `/` | TypeScript Dashboard |
-| 8081 | `/api/1867/*`, `/api/1147/*` | 1147-Gateway |
-| 8080 | `/api/oe/*`, `/api/configurations` | JS Gateway |
+| 8082 | `/api/orchestrator/*` | Batch Orchestrator (all modules) |
+| 8080 | `/api/js-gateway/*` | JS Gateway (fallback) |
 
 ## Environment Variables
 
@@ -141,7 +142,7 @@ aws logs get-log-events \
 2. Check individual service logs:
    ```bash
    docker exec -it bssmagic-middleware cat /var/log/supervisor/ts-dashboard.err.log
-   docker exec -it bssmagic-middleware cat /var/log/supervisor/gateway-1147.err.log
+   docker exec -it bssmagic-middleware cat /var/log/supervisor/batch-orchestrator.err.log
    ```
 
 ### Salesforce connection issues
@@ -156,7 +157,7 @@ aws logs get-log-events \
 # Check what's using ports
 lsof -i:3000
 lsof -i:8080
-lsof -i:8081
+lsof -i:8082
 
 # Kill processes if needed
 kill -9 $(lsof -ti:3000)
