@@ -554,7 +554,7 @@ export function SolutionEmptyModule() {
     const issue: SolutionEmptyIssue = {
       solutionId,
       solutionName: existingIssue?.solutionName || solutionName || null,
-      sfEnvironment: existingIssue?.sfEnvironment || 'FDRV2 Sandbox',
+      sfEnvironment: existingIssue?.sfEnvironment || import.meta.env.VITE_SF_ENVIRONMENT_NAME || 'Sandbox',
       detectedAt: existingIssue?.detectedAt || new Date().toISOString(),
       useCase: '1147' as const,
       detectionSource: 'BSS Magic – Solution Validator' as const,
@@ -602,7 +602,7 @@ export function SolutionEmptyModule() {
       const issue: SolutionEmptyIssue = {
         solutionId,
         solutionName: existingIssue?.solutionName || sp.affectedResource?.[0]?.name || sp.characteristic?.find(c => c.name === 'solutionName')?.value as string || null,
-        sfEnvironment: existingIssue?.sfEnvironment || 'FDRV2 Sandbox',
+        sfEnvironment: existingIssue?.sfEnvironment || import.meta.env.VITE_SF_ENVIRONMENT_NAME || 'Sandbox',
         detectedAt: existingIssue?.detectedAt || sp.creationDate || new Date().toISOString(),
         useCase: '1147' as const,
         detectionSource: 'BSS Magic – Solution Validator' as const,
@@ -664,7 +664,7 @@ export function SolutionEmptyModule() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              Solution Empty Validator
+              Solution Remediation Validator
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Use Case 1147 • Detected by BSS Magic – Solution Validator
@@ -874,7 +874,7 @@ export function SolutionEmptyModule() {
                   No Active Issues
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  All Solution Empty issues have been resolved.
+                  All Solution Remediation issues have been resolved.
                 </p>
               </>
             )}
@@ -1544,7 +1544,7 @@ function SolutionRow({
                     <dl className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <dt className="text-slate-500 dark:text-slate-400">Use Case</dt>
-                        <dd className="text-slate-900 dark:text-slate-100">{issue.useCase} – Solution Empty</dd>
+                        <dd className="text-slate-900 dark:text-slate-100">{issue.useCase} – Solution Remediation</dd>
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-slate-500 dark:text-slate-400">Detection Source</dt>
@@ -1952,7 +1952,7 @@ function LoadingState() {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <RefreshCw className="w-8 h-8 text-slate-400 animate-spin mb-4" />
-      <p className="text-slate-500 dark:text-slate-400">Loading Solution Empty data...</p>
+      <p className="text-slate-500 dark:text-slate-400">Loading Solution Remediation data...</p>
     </div>
   );
 }

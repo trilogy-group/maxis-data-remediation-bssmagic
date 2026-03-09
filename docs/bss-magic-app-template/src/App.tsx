@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BarChart3, Wrench, Package, AlertTriangle, Plug, FileText, ChevronRight, ChevronLeft, LogOut, User, ChevronDown, Building2, Activity, Search } from 'lucide-react';
-import logoImage from './assets/img/Logo-BSS-Magic-2025.png';
+import logoImage from './assets/img/Logo-BSS-Magic-2025-200x200.gif';
 import totogiLogoImage from './assets/img/SVG/white-red-totogi-logo.svg';
 import { useAuthStore } from './stores/authStore';
 import { AuthWrapper } from './components/Auth/AuthWrapper';
@@ -14,6 +14,7 @@ import { OrderNotGeneratedModule } from './components/Modules/OrderNotGeneratedM
 import { IoTQBSModule } from './components/Modules/IoTQBSModule';
 import { ServiceProblemsModule } from './components/Modules/ServiceProblemsModule';
 import { HealthTrendsDashboard } from './components/HealthDashboard';
+import { isModuleEnabled } from './stores/featureFlags';
 
 // Check if dev mode is enabled
 const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
@@ -241,11 +242,12 @@ const App: React.FC = () => {
               {sidebarExpanded && (
                 <div className="my-2 px-2">
                   <div className="border-t border-navigation-700"></div>
-                  <div className="text-[10px] text-navigation-400 mt-2 px-2">REMEDIATION MODULES</div>
+                  <div className="text-[10px] text-navigation-400 mt-2 px-2">SOLUTION MODULES</div>
                 </div>
               )}
               
               {/* Migrated Service Data Patching */}
+              {isModuleEnabled('oe-patcher') && (
               <button
                 onClick={() => setCurrentTab('oe-patcher')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -262,8 +264,10 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              )}
 
               {/* Migrated Service Checker */}
+              {isModuleEnabled('oe-checker') && (
               <button
                 onClick={() => setCurrentTab('oe-checker')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -280,8 +284,10 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              )}
 
-              {/* 1147 Solution Empty */}
+              {/* 1147 - Empty Solution Remediation */}
+              {isModuleEnabled('solution-empty') && (
               <button
                 onClick={() => setCurrentTab('solution-empty')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -289,17 +295,19 @@ const App: React.FC = () => {
                     ? 'bg-navigation-600 text-white shadow-sm'
                     : 'text-navigation-200 hover:text-white hover:bg-navigation-700'
                 } ${sidebarExpanded ? 'space-x-2' : 'justify-center'}`}
-                title={!sidebarExpanded ? '1147 Solution Empty' : undefined}
+                title={!sidebarExpanded ? '1147 - Empty Solution Remediation' : undefined}
               >
                 <Package size={16} className="flex-shrink-0" />
                 {sidebarExpanded && (
                   <span className="truncate transition-opacity duration-150">
-                    1147 Solution Empty
+                    1147 - Empty Solution Remediation
                   </span>
                 )}
               </button>
+              )}
 
               {/* Order Not Generated */}
+              {isModuleEnabled('order-not-gen') && (
               <button
                 onClick={() => setCurrentTab('order-not-gen')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -316,8 +324,10 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              )}
 
               {/* IoT QBS Remediator */}
+              {isModuleEnabled('iot-qbs') && (
               <button
                 onClick={() => setCurrentTab('iot-qbs')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -334,8 +344,10 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              )}
 
               {/* Service Problems */}
+              {isModuleEnabled('remediation-history') && (
               <button
                 onClick={() => setCurrentTab('remediation-history')}
                 className={`w-full flex items-center px-2 py-2 mb-1 rounded-md text-xs font-medium transition-colors duration-150 ${
@@ -352,6 +364,7 @@ const App: React.FC = () => {
                   </span>
                 )}
               </button>
+              )}
             </nav>
           </div>
 

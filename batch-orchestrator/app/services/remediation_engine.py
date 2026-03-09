@@ -381,7 +381,7 @@ class RemediationEngine:
             # SUCCESS
             # -----------------------------------------------------------------
             engine.transition(RemediationState.COMPLETED, "Remediation completed successfully")
-            self._update_sp(service_problem_id, "resolved", "COMPLETED", "Remediation completed")
+            self._update_sp(service_problem_id, "resolved", "COMPLETED", "Remediation completed", steps=result.steps)
 
             result.success = True
             result.message = "Remediation completed successfully"
@@ -451,12 +451,23 @@ class RemediationEngine:
         status: str,
         remediation_state: str,
         reason: str = "",
+        steps: list = None,
     ):
         """Update ServiceProblem if ID was provided."""
         if not sp_id:
             return
         try:
-            self.tmf.update_service_problem(sp_id, status, remediation_state, reason)
+            timeline = None
+            if steps:
+                timeline = []
+                for s in steps:
+                    entry = {"action": s.action, "success": s.success, "duration_ms": s.duration_ms, "message": s.message}
+                    if s.job_id:
+                        entry["job_id"] = s.job_id
+                    if s.status:
+                        entry["status"] = s.status
+                    timeline.append(entry)
+            self.tmf.update_service_problem(sp_id, status, remediation_state, reason, remediation_timeline=timeline)
             logger.info(f"Updated ServiceProblem {sp_id} -> status={status}, state={remediation_state}")
         except Exception as e:
             logger.warning(f"Failed to update ServiceProblem {sp_id}: {e}")
