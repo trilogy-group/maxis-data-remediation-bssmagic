@@ -107,7 +107,7 @@ function transformProductToIssue(product: TMFProduct): SolutionEmptyIssue {
   return {
     solutionId: product.id,
     solutionName: product.name || product.productSpecification?.name || null,
-    sfEnvironment: 'FDRV2 Sandbox',
+    sfEnvironment: import.meta.env.VITE_SF_ENVIRONMENT_NAME || 'Sandbox',
     detectedAt: product.lastUpdate || product.createdDate || new Date().toISOString(),
     useCase: '1147',
     detectionSource: 'BSS Magic – Solution Validator',
